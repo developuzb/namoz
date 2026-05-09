@@ -20,6 +20,10 @@ CB_SETTINGS = "settings"
 # ---------- Onboarding ----------
 CB_ONBOARD_LOCATION = "onboard:location"
 CB_ONBOARD_LIST = "onboard:list"
+CB_ONBOARD_SEARCH = "onboard:search"
+
+# ---------- Tomorrow times ----------
+CB_TOMORROW_TIMES = "my_times_tom"
 
 # ---------- Lokatsiya tasdiq ----------
 CB_LOC_CONFIRM = "loc:ok"          # loc:ok:<region_id>

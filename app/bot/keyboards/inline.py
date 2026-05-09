@@ -60,16 +60,19 @@ def tuman_keyboard(
 
 def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
     """Asosiy menyu — /start dan keyin yoki menyuga qaytishda."""
+    from app.bot.keyboards.callback_data import CB_TOMORROW_TIMES
+
     kb = InlineKeyboardBuilder()
     if has_subscriptions:
         kb.button(text="🕌 Bugungi vaqtlar", callback_data=CB_MY_TIMES)
+        kb.button(text="🌅 Ertangi vaqtlar", callback_data=CB_TOMORROW_TIMES)
         kb.button(text="⏭ Keyingi farz", callback_data=CB_NEXT_FARZ)
         kb.button(text="🌙 Hozir qaysi nafl?", callback_data=CB_NAFL_NOW)
     kb.button(text="📍 Hudud tanlash", callback_data=CB_SELECT_REGION)
     kb.button(text="⚙️ Sozlamalar", callback_data=CB_SETTINGS)
 
     if has_subscriptions:
-        kb.adjust(1, 2, 2)  # times, [next farz | nafl now], [region | settings]
+        kb.adjust(2, 2, 2)  # [bugun | ertaga], [keyingi | nafl], [hudud | sozlamalar]
     else:
         kb.adjust(1, 1)
     return kb.as_markup()
@@ -102,12 +105,15 @@ def settings_keyboard(
 
 
 def onboarding_keyboard() -> InlineKeyboardMarkup:
-    """/start onboarding — 2 variant: lokatsiya yoki ro'yxat."""
+    """/start onboarding — 3 variant: lokatsiya / ro'yxat / qidirish."""
+    from app.bot.keyboards.callback_data import CB_ONBOARD_SEARCH
+
     kb = InlineKeyboardBuilder()
     kb.button(
         text="📍 Lokatsiya orqali topish (tavsiya)",
         callback_data=CB_ONBOARD_LOCATION,
     )
+    kb.button(text="🔍 Nomini qidirish", callback_data=CB_ONBOARD_SEARCH)
     kb.button(text="🗂 Ro'yxatdan tanlash", callback_data=CB_ONBOARD_LIST)
     kb.adjust(1)
     return kb.as_markup()

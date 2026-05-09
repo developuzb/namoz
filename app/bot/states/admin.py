@@ -1,4 +1,4 @@
-"""Admin FSM holatlari."""
+"""Admin va user FSM holatlari."""
 from __future__ import annotations
 
 from aiogram.fsm.state import State, StatesGroup
@@ -26,3 +26,9 @@ class BroadcastFSM(StatesGroup):
 
     composing = State()
     confirming = State()
+
+
+class SearchFSM(StatesGroup):
+    """Region nomini qidirish oqimi (user uchun)."""
+
+    querying = State()

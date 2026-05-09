@@ -1,7 +1,7 @@
 """Bugungi vaqtlar / Keyingi farz / Nafl info — info handlerlari."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import pytz
 from aiogram import F, Router
@@ -9,7 +9,12 @@ from aiogram.exceptions import TelegramForbiddenError
 from aiogram.types import CallbackQuery, FSInputFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.bot.keyboards.callback_data import CB_MY_TIMES, CB_NAFL_NOW, CB_NEXT_FARZ
+from app.bot.keyboards.callback_data import (
+    CB_MY_TIMES,
+    CB_NAFL_NOW,
+    CB_NEXT_FARZ,
+    CB_TOMORROW_TIMES,
+)
 from app.core.config import get_settings
 from app.core.constants import FARZ_PRAYERS
 from app.core.exceptions import ProviderError
@@ -26,8 +31,15 @@ from app.utils.time_utils import format_eta, parse_hhmm_to_dt
 router = Router(name="user.info")
 
 
-@router.callback_query(F.data == CB_MY_TIMES)
-async def my_times(call: CallbackQuery, user: User, session: AsyncSession) -> None:
+async def _send_times_for_date(
+    call: CallbackQuery,
+    user: User,
+    session: AsyncSession,
+    target_date: date,
+    *,
+    label: str = "",
+) -> None:
+    """User'ning hamma obunalari uchun belgilangan kun vaqtlarini DM ga yuboradi."""
     sub_repo = SubscriptionRepository(session)
     user_subs = await sub_repo.list_by_user(user.id)
 
@@ -35,14 +47,14 @@ async def my_times(call: CallbackQuery, user: User, session: AsyncSession) -> No
         await call.answer("Avval hudud tanlang", show_alert=True)
         return
 
-    await call.answer("⏳ Vaqtlar tayyorlanmoqda...")
-    today = date.today()
+    notice = f"⏳ {label} vaqtlar tayyorlanmoqda..." if label else "⏳ Vaqtlar tayyorlanmoqda..."
+    await call.answer(notice)
 
     for sub in user_subs:
         region = sub.region
         try:
             bundle = await get_post_service().build_for_region(
-                session=session, region=region, target_date=today,
+                session=session, region=region, target_date=target_date,
             )
             await call.bot.send_photo(
                 chat_id=user.tg_id,
@@ -50,11 +62,15 @@ async def my_times(call: CallbackQuery, user: User, session: AsyncSession) -> No
                 caption=bundle.caption,
             )
         except ProviderError as e:
-            logger.warning("my_times provider failed for {}: {}", region.name, e)
+            logger.warning(
+                "{} provider failed for {}: {}",
+                label or "my_times", region.name, e,
+            )
             await call.bot.send_message(
                 chat_id=user.tg_id,
                 text=(
-                    f"⚠️ <b>{escape_html(region.name)}</b> uchun vaqtlar olinmadi.\n"
+                    f"⚠️ <b>{escape_html(region.name)}</b> uchun "
+                    f"{label or 'bugungi'} vaqtlar olinmadi.\n"
                     "Keyinroq qayta urinib ko'ring."
                 ),
             )
@@ -63,6 +79,19 @@ async def my_times(call: CallbackQuery, user: User, session: AsyncSession) -> No
             user_repo = UserRepository(session)
             await user_repo.mark_blocked(user.tg_id)
             return
+
+
+@router.callback_query(F.data == CB_MY_TIMES)
+async def my_times(call: CallbackQuery, user: User, session: AsyncSession) -> None:
+    await _send_times_for_date(call, user, session, date.today(), label="bugungi")
+
+
+@router.callback_query(F.data == CB_TOMORROW_TIMES)
+async def tomorrow_times(
+    call: CallbackQuery, user: User, session: AsyncSession
+) -> None:
+    tomorrow = date.today() + timedelta(days=1)
+    await _send_times_for_date(call, user, session, tomorrow, label="ertangi")
 
 
 @router.callback_query(F.data == CB_NEXT_FARZ)
