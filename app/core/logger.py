@@ -95,8 +95,20 @@ def setup_logger() -> None:
 
     # Python `logging` modulini loguru ga ulash (aiogram, sqlalchemy va h.k.)
     logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
+    # aiogram update logi foydali — INFO darajada qoldiramiz
     for noisy in ("aiogram.event", "aiogram.dispatcher"):
         logging.getLogger(noisy).setLevel(logging.INFO)
+    # sqlalchemy/httpx/asyncio juda gapdor — WARNING darajaga tushiramiz
+    for verbose in (
+        "sqlalchemy.engine",
+        "sqlalchemy.pool",
+        "sqlalchemy.dialects",
+        "httpx",
+        "httpcore",
+        "asyncio",
+        "PIL",
+    ):
+        logging.getLogger(verbose).setLevel(logging.WARNING)
 
     logger.info(
         "📝 Logger sozlandi (level={}, file={})",

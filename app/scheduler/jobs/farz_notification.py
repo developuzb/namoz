@@ -9,7 +9,11 @@ from __future__ import annotations
 import asyncio
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramRetryAfter,
+)
 
 from app.core.config import get_settings
 from app.core.logger import logger
@@ -65,22 +69,37 @@ async def fire_farz_notification(
             if user.is_blocked:
                 continue
 
-            try:
-                msg = await bot.send_message(user.tg_id, text)
-            except TelegramForbiddenError:
-                await user_repo.mark_blocked(user.tg_id)
-                await log_repo.log(
-                    region_id=region_id, chat_id=user.tg_id,
-                    post_type="farz_notification", status="blocked",
-                )
-                blocked += 1
-                continue
-            except TelegramBadRequest as e:
-                await log_repo.log(
-                    region_id=region_id, chat_id=user.tg_id,
-                    post_type="farz_notification", status="error", error=str(e),
-                )
-                errors += 1
+            msg = None
+            for attempt in range(2):
+                try:
+                    msg = await bot.send_message(user.tg_id, text)
+                    break
+                except TelegramRetryAfter as e:
+                    if attempt == 0:
+                        logger.warning("Rate limit tg={}, kutamiz {}s", user.tg_id, e.retry_after)
+                        await asyncio.sleep(e.retry_after + 1)
+                        continue
+                    errors += 1
+                    msg = None
+                    break
+                except TelegramForbiddenError:
+                    await user_repo.mark_blocked(user.tg_id)
+                    await log_repo.log(
+                        region_id=region_id, chat_id=user.tg_id,
+                        post_type="farz_notification", status="blocked",
+                    )
+                    blocked += 1
+                    msg = None
+                    break
+                except TelegramBadRequest as e:
+                    await log_repo.log(
+                        region_id=region_id, chat_id=user.tg_id,
+                        post_type="farz_notification", status="error", error=str(e),
+                    )
+                    errors += 1
+                    msg = None
+                    break
+            if msg is None:
                 continue
 
             await log_repo.log(

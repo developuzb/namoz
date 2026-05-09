@@ -14,7 +14,11 @@ import asyncio
 from datetime import date
 
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+    TelegramRetryAfter,
+)
 from aiogram.types import FSInputFile
 from sqlalchemy import select
 
@@ -148,43 +152,60 @@ async def _send_photo_safe(
     region_id: int,
     post_type: str,
 ) -> bool:
-    """Photo yuboradi va xato bilan ishlaydi. Returns True if delivered."""
-    try:
-        msg = await bot.send_photo(
-            chat_id=chat_id,
-            photo=FSInputFile(image_path),
-            caption=caption,
-        )
-    except TelegramForbiddenError:
-        # User bot'ni bloklagan — flag o'rnatish
-        if user_repo is not None:
-            await user_repo.mark_blocked(chat_id)
-        await log_repo.log(
-            region_id=region_id, chat_id=chat_id,
-            post_type=post_type, status="blocked",
-        )
-        logger.warning("Bloklangan: chat_id={}", chat_id)
-        return False
-    except TelegramBadRequest as e:
-        await log_repo.log(
-            region_id=region_id, chat_id=chat_id,
-            post_type=post_type, status="error", error=str(e),
-        )
-        logger.error("Send fail chat_id={}: {}", chat_id, e)
-        return False
-    except Exception as e:
-        await log_repo.log(
-            region_id=region_id, chat_id=chat_id,
-            post_type=post_type, status="error", error=str(e),
-        )
-        logger.exception("Send unexpected error chat_id={}: {}", chat_id, e)
-        return False
+    """Photo yuboradi va xato bilan ishlaydi. Returns True if delivered.
 
-    await log_repo.log(
-        region_id=region_id, chat_id=chat_id,
-        post_type=post_type, status="ok", message_id=msg.message_id,
-    )
-    return True
+    `TelegramRetryAfter` bo'lsa Telegram talab qilgan vaqt kutilib, bir marta
+    qayta urinib ko'riladi.
+    """
+    for attempt in range(2):
+        try:
+            msg = await bot.send_photo(
+                chat_id=chat_id,
+                photo=FSInputFile(image_path),
+                caption=caption,
+            )
+        except TelegramRetryAfter as e:
+            if attempt == 0:
+                logger.warning("Rate limit chat_id={}, kutamiz {}s", chat_id, e.retry_after)
+                import asyncio as _asyncio
+                await _asyncio.sleep(e.retry_after + 1)
+                continue
+            await log_repo.log(
+                region_id=region_id, chat_id=chat_id,
+                post_type=post_type, status="error",
+                error=f"retry_after exhausted: {e}",
+            )
+            return False
+        except TelegramForbiddenError:
+            if user_repo is not None:
+                await user_repo.mark_blocked(chat_id)
+            await log_repo.log(
+                region_id=region_id, chat_id=chat_id,
+                post_type=post_type, status="blocked",
+            )
+            logger.warning("Bloklangan: chat_id={}", chat_id)
+            return False
+        except TelegramBadRequest as e:
+            await log_repo.log(
+                region_id=region_id, chat_id=chat_id,
+                post_type=post_type, status="error", error=str(e),
+            )
+            logger.error("Send fail chat_id={}: {}", chat_id, e)
+            return False
+        except Exception as e:
+            await log_repo.log(
+                region_id=region_id, chat_id=chat_id,
+                post_type=post_type, status="error", error=str(e),
+            )
+            logger.exception("Send unexpected error chat_id={}: {}", chat_id, e)
+            return False
+
+        await log_repo.log(
+            region_id=region_id, chat_id=chat_id,
+            post_type=post_type, status="ok", message_id=msg.message_id,
+        )
+        return True
+    return False
 
 
 __all__ = ["run_daily_post"]

@@ -42,7 +42,7 @@ _CENTROIDS: list[tuple[str, float, float]] = [
     ("shahrisabz",  39.0581, 66.8281),
     ("yakkabog",    38.9656, 66.6692),
     ("chiroqchi",   39.0361, 66.5781),
-    ("kokdala",     39.0581, 66.8281),  # Shahrisabz yaqin
+    ("kokdala",     39.1356, 66.2920),  # Lokatsiyadan tasdiqlangan
 ]
 
 
