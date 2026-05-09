@@ -9,6 +9,7 @@ import pytz
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.constants import FARZ_PRAYERS
 from app.db.models.region import Region
 from app.db.repositories.masjid_time_repo import MasjidTimeRepository
 from app.db.repositories.region_repo import RegionRepository
@@ -18,6 +19,22 @@ from app.services.image_builder import make_prayer_image
 from app.services.prayer_provider import PrayerService
 from app.services.time_calculator import calculate_nafl_windows
 from app.utils.text_utils import format_milodiy_uz
+from app.utils.time_utils import parse_hhmm_to_dt
+
+
+def _find_next_farz(
+    times: dict[str, str], target_date: date, now: datetime, tz: pytz.BaseTzInfo
+) -> str | None:
+    """Bugungi farzlar ichidan keyingi (vaqti hali kelmagan) namozni topadi.
+    Hammasi o'tib bo'lgan bo'lsa — None (ertaga Bomdod, lekin highlight qilmaymiz)."""
+    for prayer in FARZ_PRAYERS:
+        t = times.get(prayer)
+        if not t:
+            continue
+        dt = parse_hhmm_to_dt(t, target_date, tz)
+        if dt and dt > now:
+            return prayer
+    return None
 
 
 _ATTRIBUTION = {
@@ -47,6 +64,7 @@ class PostService:
         region: Region,
         target_date: date,
         channel_link: str | None = None,
+        now: datetime | None = None,
     ) -> PostBundle:
         """
         Bitta hudud uchun to'liq post (rasm + caption) yasaydi.
@@ -55,7 +73,8 @@ class PostService:
             ProviderError: barcha provider lar ishlamasa.
         """
         settings = get_settings()
-        tz = pytz.timezone(settings.TIMEZONE)
+        tz = pytz.timezone(region.timezone or settings.TIMEZONE)
+        now = now or datetime.now(tz)
 
         pt = await self.prayer_service.fetch_for_region(region, target_date)
 
@@ -87,12 +106,15 @@ class PostService:
             datetime(target_date.year, target_date.month, target_date.day)
         )
 
+        next_farz = _find_next_farz(pt.times, target_date, now, tz)
+
         img_path = make_prayer_image(
             region_name=region.name,
             milodiy=milodiy,
             hijriy=hijriy,
             region_times=pt.times,
             masjid_times=masjid_times,
+            highlight_prayer=next_farz,
         )
 
         caption = build_post_caption(

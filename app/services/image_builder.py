@@ -1,20 +1,29 @@
-"""Namoz vaqtlari rasmini yasaydi (Pillow) — vertical card grid layout."""
+"""Namoz vaqtlari rasmini yasaydi (Pillow) — v2: 3D card grid bilan UX boost.
+
+Yangi xususiyatlar:
+- Real blurred drop shadow (haqiqiy chuqurlik)
+- Card vertical gradient (yuqori ochroq, pastki to'qroq — yoritilgan effekti)
+- Top highlight stroke (yorug'lik kart yuqorisiga tushganday)
+- Keyingi namoz oltin halqa bilan ajratiladi + "Keyingi" badge
+- Subtle yulduzli pattern fonda
+"""
 from __future__ import annotations
 
+import math
+import random
 import re
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from app.core.config import get_settings
 from app.core.constants import ALL_PRAYERS
 from app.core.logger import logger
 from app.utils.time_utils import clean_hhmm
 
-#: Default rasm o'lchami (1080x1080 — Telegram square optimal)
+#: Default rasm o'lchami
 DEFAULT_SIZE: tuple[int, int] = (1080, 1080)
 
-#: Font fayllar (static/fonts/ ichida bo'lishi kerak)
 FONT_FILES: dict[str, str] = {
     "title":    "Montserrat-VariableFont_wght.ttf",
     "subtitle": "Inter-VariableFont_opsz,wght.ttf",
@@ -24,21 +33,26 @@ FONT_FILES: dict[str, str] = {
     "fallback": "NotoSans-VariableFont_wdth,wght.ttf",
 }
 
-#: Bo'sh vaqt ko'rsatkichi
 EMPTY_MARK = "—"
 
 # ============== Rang palitrasi ==============
-COLOR_BG_TOP = (12, 70, 40)             # to'q yashil (gradient yuqori)
-COLOR_BG_BOTTOM = (8, 55, 32)           # gradient pastki
-COLOR_CARD = (245, 238, 222)            # cream
-COLOR_CARD_SHADOW = (5, 40, 22)         # card ostidagi soya
-COLOR_TEXT_PRIMARY = (12, 70, 40)       # cardda asosiy matn
-COLOR_TEXT_MUTED = (107, 122, 110)      # card prayer name
-COLOR_TEXT_TIME = (24, 39, 32)          # katta vaqt
-COLOR_TEXT_SUB = (12, 70, 40)           # jamoat satri
-COLOR_HEADER = (255, 255, 255)          # header oq
-COLOR_HEADER_DIM = (200, 215, 200)      # subtitle och
-COLOR_DIVIDER = (180, 165, 130)         # cardda chiziqcha
+COLOR_BG_TOP = (14, 75, 44)              # to'q yashil yuqori
+COLOR_BG_BOTTOM = (6, 45, 26)            # to'q yashil pastki
+COLOR_CARD_TOP = (250, 244, 230)         # cream yuqori (yoritilgan)
+COLOR_CARD_BOTTOM = (235, 225, 205)      # cream pastki (soya)
+COLOR_CARD_HIGHLIGHT_TOP = (255, 250, 240)  # current card yuqori — yorqinroq
+COLOR_CARD_HIGHLIGHT_BOTTOM = (240, 228, 200)
+COLOR_TEXT_PRIMARY = (12, 70, 40)
+COLOR_TEXT_MUTED = (107, 122, 110)
+COLOR_TEXT_TIME = (24, 39, 32)
+COLOR_TEXT_SUB = (12, 70, 40)
+COLOR_HEADER = (255, 255, 255)
+COLOR_HEADER_DIM = (190, 215, 195)
+COLOR_DIVIDER = (180, 165, 130)
+COLOR_GOLD = (212, 168, 95)              # current card oltin halqa
+COLOR_GOLD_GLOW = (242, 198, 125)        # yorqinroq oltin
+COLOR_TOP_HIGHLIGHT = (255, 252, 245, 180)  # card yuqorisidagi yorug'lik stroke
+COLOR_STAR = (255, 255, 255, 18)         # juda och oq — fon yulduzlari
 
 
 def _safe_filename(name: str) -> str:
@@ -63,7 +77,6 @@ def _load_font(filename: str, size: int) -> ImageFont.FreeTypeFont:
 
 
 def _try_variant(font: ImageFont.FreeTypeFont, want: str) -> None:
-    """Variable font da nomlangan instance ni yoqish (Bold/SemiBold)."""
     if not (
         hasattr(font, "get_variation_names")
         and hasattr(font, "set_variation_by_name")
@@ -81,30 +94,135 @@ def _try_variant(font: ImageFont.FreeTypeFont, want: str) -> None:
 
 
 def _normalize_times(d: dict[str, str]) -> dict[str, str]:
-    """clean_hhmm bilan tozalash. None bo'lganlarni bo'sh string qilib qoldiradi."""
     return {k: (clean_hhmm(v) or "") for k, v in (d or {}).items()}
 
 
 def _apply_fallback(home: dict[str, str], mosq: dict[str, str]) -> None:
-    """Kirish vaqti bo'sh bo'lsa, masjid vaqtidan to'ldirish."""
     for prayer in ALL_PRAYERS:
         if not home.get(prayer) and mosq.get(prayer):
             home[prayer] = mosq[prayer]
 
 
-def _draw_gradient_bg(img: Image.Image, top: tuple, bottom: tuple) -> None:
-    """Vertikal gradient — yuqoridan pastga."""
-    W, H = img.size
-    overlay = Image.new("RGB", (1, H))
-    for y in range(H):
-        ratio = y / max(H - 1, 1)
+# ============== Pastki darajadagi grafik yordamchilar ==============
+
+def _make_vertical_gradient(
+    w: int, h: int, top: tuple[int, int, int], bottom: tuple[int, int, int]
+) -> Image.Image:
+    """Vertikal gradient (yuqori → pastki). Optimallashtirilgan."""
+    grad = Image.new("RGB", (1, h))
+    for y in range(h):
+        ratio = y / max(h - 1, 1)
         r = int(top[0] + (bottom[0] - top[0]) * ratio)
         g = int(top[1] + (bottom[1] - top[1]) * ratio)
         b = int(top[2] + (bottom[2] - top[2]) * ratio)
-        overlay.putpixel((0, y), (r, g, b))
-    overlay = overlay.resize((W, H))
-    img.paste(overlay, (0, 0))
+        grad.putpixel((0, y), (r, g, b))
+    return grad.resize((w, h))
 
+
+def _make_card(
+    w: int,
+    h: int,
+    radius: int,
+    top_color: tuple[int, int, int],
+    bottom_color: tuple[int, int, int],
+    *,
+    top_highlight: bool = True,
+) -> Image.Image:
+    """Yumshoq gradient bilan rounded rect card yasaydi (RGBA).
+
+    Top highlight: faqat YUQORI burchak atrofida ingichka chiziq.
+    Pastki burchaklar uchun chiziq yo'q — yorug'lik yuqoridan tushadi.
+    """
+    # Mask: rounded rect (full alpha)
+    mask = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, w, h), radius=radius, fill=255,
+    )
+    # Gradient body
+    grad = _make_vertical_gradient(w, h, top_color, bottom_color)
+    card = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    card.paste(grad, (0, 0), mask)
+
+    # Top highlight: yarim aylana chiziq yuqori burchakda (boshidan oxirigacha)
+    if top_highlight:
+        d = ImageDraw.Draw(card, "RGBA")
+        # Yuqori chap burchak yoyi
+        d.arc(
+            (1, 1, 2 * radius, 2 * radius),
+            start=180, end=270,
+            fill=COLOR_TOP_HIGHLIGHT, width=2,
+        )
+        # Yuqori chiziq (gorizontal)
+        d.line(
+            (radius, 1, w - radius, 1),
+            fill=COLOR_TOP_HIGHLIGHT, width=2,
+        )
+        # Yuqori o'ng burchak yoyi
+        d.arc(
+            (w - 2 * radius - 1, 1, w - 2, 2 * radius),
+            start=270, end=360,
+            fill=COLOR_TOP_HIGHLIGHT, width=2,
+        )
+
+    return card
+
+
+def _make_shadow(
+    w: int, h: int, radius: int, *, blur: int = 18, opacity: int = 130
+) -> Image.Image:
+    """Soft drop shadow — Gaussian blur."""
+    pad = blur * 2
+    canvas = Image.new("RGBA", (w + pad * 2, h + pad * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(canvas).rounded_rectangle(
+        (pad, pad, w + pad, h + pad),
+        radius=radius, fill=(0, 0, 0, opacity),
+    )
+    return canvas.filter(ImageFilter.GaussianBlur(blur))
+
+
+def _draw_gold_ring(
+    img: Image.Image, x: int, y: int, x2: int, y2: int, radius: int
+) -> None:
+    """Card atrofiga oltin glow + chiziqli halqa qo'shadi."""
+    # Tashqi glow (blur bilan)
+    pad = 12
+    glow = Image.new("RGBA", (img.size[0], img.size[1]), (0, 0, 0, 0))
+    ImageDraw.Draw(glow).rounded_rectangle(
+        (x - pad, y - pad, x2 + pad, y2 + pad),
+        radius=radius + pad,
+        outline=COLOR_GOLD_GLOW + (160,),
+        width=8,
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(8))
+    img.alpha_composite(glow)
+
+    # Aniq halqa
+    ring = Image.new("RGBA", (img.size[0], img.size[1]), (0, 0, 0, 0))
+    ImageDraw.Draw(ring).rounded_rectangle(
+        (x - 2, y - 2, x2 + 2, y2 + 2),
+        radius=radius + 2,
+        outline=COLOR_GOLD + (255,),
+        width=4,
+    )
+    img.alpha_composite(ring)
+
+
+def _draw_star_pattern(img: Image.Image, count: int = 50) -> None:
+    """Fon ustiga juda och yulduzlar — atmosfera uchun."""
+    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    rng = random.Random(42)  # deterministik joylashuv
+    for _ in range(count):
+        x = rng.randint(0, img.size[0])
+        y = rng.randint(0, int(img.size[1] * 0.22))  # yuqori 22% da
+        size = rng.choice([1, 2, 2, 3])
+        ImageDraw.Draw(layer).ellipse(
+            (x - size, y - size, x + size, y + size),
+            fill=COLOR_STAR,
+        )
+    img.alpha_composite(layer)
+
+
+# ============== Asosiy generator ==============
 
 def make_prayer_image(
     *,
@@ -115,14 +233,13 @@ def make_prayer_image(
     masjid_times: dict[str, str],
     out_filename: str | None = None,
     size: tuple[int, int] = DEFAULT_SIZE,
+    highlight_prayer: str | None = None,
 ) -> Path:
     """
-    Rasm yasab `data/images/` ga saqlaydi va yo'lini qaytaradi.
+    3D card grid layout bilan rasm yasaydi.
 
-    Layout: vertical 3x2 card grid. Har card:
-      - Yuqori chap: namoz nomi (kichik, muted)
-      - Markaz: katta vaqt
-      - Pastki: "Jamoat: HH:MM" (faqat Qashqadaryo regionlari uchun)
+    Args:
+        highlight_prayer: oltin halqa bilan belgilanadigan namoz (masalan keyingisi)
     """
     settings = get_settings()
     W, H = size
@@ -139,20 +256,24 @@ def make_prayer_image(
         logger.warning("{} uchun vaqt to'liq emas: {}", region_name, missing)
 
     # ============== Fon ==============
-    img = Image.new("RGB", (W, H), COLOR_BG_TOP)
-    _draw_gradient_bg(img, COLOR_BG_TOP, COLOR_BG_BOTTOM)
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    bg = _make_vertical_gradient(W, H, COLOR_BG_TOP, COLOR_BG_BOTTOM).convert("RGBA")
+    img.paste(bg, (0, 0))
+    _draw_star_pattern(img, count=60)
     d = ImageDraw.Draw(img)
 
     # ============== Fontlar ==============
-    f_title = _load_font(FONT_FILES["title"], int(0.075 * H))
+    f_title = _load_font(FONT_FILES["title"], int(0.072 * H))
     _try_variant(f_title, "Bold")
     f_sub = _load_font(FONT_FILES["subtitle"], int(0.030 * H))
     f_card_name = _load_font(FONT_FILES["name"], int(0.030 * H))
     _try_variant(f_card_name, "SemiBold")
-    f_card_time = _load_font(FONT_FILES["time"], int(0.082 * H))
+    f_card_time = _load_font(FONT_FILES["time"], int(0.084 * H))
     _try_variant(f_card_time, "Bold")
     f_card_sub = _load_font(FONT_FILES["subtitle"], int(0.026 * H))
     _try_variant(f_card_sub, "SemiBold")
+    f_badge = _load_font(FONT_FILES["subtitle"], int(0.022 * H))
+    _try_variant(f_badge, "Bold")
     f_footer = _load_font(FONT_FILES["subtitle"], int(0.022 * H))
 
     # ============== Header ==============
@@ -163,18 +284,17 @@ def make_prayer_image(
     )
     d.text(
         (W // 2, int(0.135 * H)),
-        f"{milodiy}",
+        milodiy,
         font=f_sub, fill=COLOR_HEADER, anchor="mm",
     )
     d.text(
         (W // 2, int(0.170 * H)),
-        f"{hijriy}",
+        hijriy,
         font=f_sub, fill=COLOR_HEADER_DIM, anchor="mm",
     )
 
-    # Header ostidagi nozik chiziq
     line_y = int(0.205 * H)
-    line_x_pad = int(0.30 * W)
+    line_x_pad = int(0.32 * W)
     d.line(
         (line_x_pad, line_y, W - line_x_pad, line_y),
         fill=COLOR_HEADER_DIM, width=2,
@@ -183,7 +303,7 @@ def make_prayer_image(
     # ============== Cards 3x2 grid ==============
     card_margin_x = int(0.05 * W)
     card_gap_x = int(0.025 * W)
-    card_gap_y = int(0.020 * H)
+    card_gap_y = int(0.022 * H)
     grid_top = int(0.235 * H)
     grid_bottom = int(0.95 * H)
 
@@ -199,23 +319,37 @@ def make_prayer_image(
         x2 = x + card_w
         y2 = y + card_h
 
-        # Soya (orqada)
-        shadow_offset = 4
-        d.rounded_rectangle(
-            (x + shadow_offset, y + shadow_offset, x2 + shadow_offset, y2 + shadow_offset),
-            radius=radius,
-            fill=COLOR_CARD_SHADOW,
-        )
-        # Card
-        d.rounded_rectangle((x, y, x2, y2), radius=radius, fill=COLOR_CARD)
+        is_highlighted = (highlight_prayer == prayer)
 
+        # 1) Drop shadow
+        shadow = _make_shadow(card_w, card_h, radius, blur=20, opacity=140)
+        img.alpha_composite(shadow, (x - 36, y - 32))
+
+        # 2) Card body (gradient + top highlight)
+        if is_highlighted:
+            card = _make_card(
+                card_w, card_h, radius,
+                COLOR_CARD_HIGHLIGHT_TOP, COLOR_CARD_HIGHLIGHT_BOTTOM,
+                top_highlight=True,
+            )
+        else:
+            card = _make_card(
+                card_w, card_h, radius,
+                COLOR_CARD_TOP, COLOR_CARD_BOTTOM,
+                top_highlight=True,
+            )
+        img.alpha_composite(card, (x, y))
+
+        # 3) Oltin halqa (highlighted bo'lsa)
+        if is_highlighted:
+            _draw_gold_ring(img, x, y, x2, y2, radius)
+
+        # 4) Card matnlari
         cx = (x + x2) // 2
-
         prayer_mosq = mosq.get(prayer)
         show_jamoat = has_mosq and bool(prayer_mosq)
 
         if show_jamoat:
-            # 3 darajali kompozitsiya (nom, katta vaqt, jamoat)
             d.text(
                 (cx, y + int(0.18 * card_h)),
                 prayer.upper(),
@@ -226,7 +360,6 @@ def make_prayer_image(
                 home.get(prayer) or EMPTY_MARK,
                 font=f_card_time, fill=COLOR_TEXT_TIME, anchor="mm",
             )
-            # Ajratuvchi chiziqcha
             div_y = y + int(0.72 * card_h)
             div_pad = int(card_w * 0.18)
             d.line(
@@ -239,8 +372,6 @@ def make_prayer_image(
                 font=f_card_sub, fill=COLOR_TEXT_SUB, anchor="mm",
             )
         else:
-            # 2 darajali (nom + katta vaqt) — Quyosh kabi jamoatsiz namoz
-            # yoki butunlay jamoatsiz region (Aladhan)
             d.text(
                 (cx, y + int(0.30 * card_h)),
                 prayer.upper(),
@@ -250,6 +381,26 @@ def make_prayer_image(
                 (cx, y + int(0.65 * card_h)),
                 home.get(prayer) or EMPTY_MARK,
                 font=f_card_time, fill=COLOR_TEXT_TIME, anchor="mm",
+            )
+
+        # 5) Highlighted card uchun "KEYINGI" badge (yuqori-o'ng burchakda)
+        if is_highlighted:
+            badge_text = "KEYINGI"
+            bbox = d.textbbox((0, 0), badge_text, font=f_badge)
+            tw = bbox[2] - bbox[0]
+            th = bbox[3] - bbox[1]
+            pad_x, pad_y = int(card_w * 0.025), int(card_h * 0.04)
+            bx = x2 - tw - pad_x * 2 - 8
+            by = y + 8
+            d.rounded_rectangle(
+                (bx, by, bx + tw + pad_x * 2, by + th + pad_y * 2),
+                radius=int(th * 0.7),
+                fill=COLOR_GOLD,
+            )
+            d.text(
+                (bx + pad_x, by + pad_y - 2),
+                badge_text,
+                font=f_badge, fill=(255, 255, 255),
             )
 
     # ============== Footer ==============
@@ -271,7 +422,7 @@ def make_prayer_image(
         out_path = settings.images_dir / f"{_safe_filename(region_name)}.png"
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    img.save(out_path)
+    img.convert("RGB").save(out_path)
     logger.debug("Rasm saqlandi: {}", out_path)
     return out_path
 
