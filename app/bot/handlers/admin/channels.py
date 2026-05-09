@@ -33,6 +33,8 @@ from app.bot.keyboards.callback_data import (
     CB_CH_CANCEL,
     CB_CH_DELETE,
     CB_CH_DELETE_OK,
+    CB_CH_TEMPLATE_CLEAR,
+    CB_CH_TEMPLATE_EDIT,
     CB_CH_TOGGLE,
     CB_CH_TUMAN,
     CB_CH_VIEW,
@@ -343,17 +345,132 @@ async def view_channel(call: CallbackQuery, session: AsyncSession) -> None:
         return
     region = await rr.get(ch.region_id)
 
+    template_preview = (
+        f"\n📝 <i>Custom matn ({len(ch.custom_caption_template)} belgi):</i>\n"
+        f"<code>{escape_html(ch.custom_caption_template[:120])}"
+        + ("..." if len(ch.custom_caption_template) > 120 else "")
+        + "</code>"
+        if ch.custom_caption_template
+        else ""
+    )
     text = (
         f"📢 <b>{escape_html(ch.title or '—')}</b>\n\n"
         f"🆔 <code>{ch.chat_id}</code>\n"
         f"📍 {escape_html(region.name if region else '?')}\n"
         f"🔗 {escape_html(ch.link or '—')}\n"
         f"📊 {'✅ Faol' if ch.is_active else '⏸ Pauza'}"
+        f"{template_preview}"
     )
     await call.message.edit_text(
-        text, reply_markup=channel_detail_keyboard(ch.id, ch.is_active),
+        text, reply_markup=channel_detail_keyboard(
+            ch.id, ch.is_active, has_template=bool(ch.custom_caption_template),
+        ),
     )
     await call.answer()
+
+
+# =================== Custom caption template ===================
+
+@router.callback_query(F.data.startswith(f"{CB_CH_TEMPLATE_EDIT}:"))
+async def start_edit_template(
+    call: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+
+    await state.set_state(ChannelFSM.entering_caption_template)
+    await state.update_data(channel_id=ch_id)
+
+    current = ch.custom_caption_template or ""
+    text = (
+        f"✏️ <b>Custom matn</b> — <i>{escape_html(ch.title or '')}</i>\n\n"
+        "Yuboriladigan har bir kunlik post oxiriga qo'shiladi.\n"
+        "HTML qabul qilinadi (<code>&lt;b&gt;</code>, <code>&lt;a&gt;</code> va h.k.).\n\n"
+    )
+    if current:
+        text += (
+            "Hozirgi matn:\n"
+            f"<code>{escape_html(current[:500])}</code>\n\n"
+            "Yangi matn yuboring (yoki /cancel)."
+        )
+    else:
+        text += "Yangi matn yuboring (yoki /cancel)."
+
+    await call.message.edit_text(text)
+    await call.answer()
+
+
+@router.message(StateFilter(ChannelFSM.entering_caption_template))
+async def receive_template(
+    message: Message, state: FSMContext, session: AsyncSession
+) -> None:
+    if not message.text or message.text.startswith("/"):
+        return  # /cancel boshqa handlerga ketadi
+
+    if len(message.text) > 4000:
+        await message.answer(
+            f"❌ Matn juda uzun ({len(message.text)} belgi). "
+            "Maks 4000. Qisqaroq yuboring."
+        )
+        return
+
+    data = await state.get_data()
+    ch_id = data.get("channel_id")
+    if not ch_id:
+        await state.clear()
+        await message.answer("⚠️ Sessiya tugadi. Qaytadan boshlang.")
+        return
+
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await state.clear()
+        await message.answer("Kanal topilmadi")
+        return
+
+    ch.custom_caption_template = message.text
+    await session.flush()
+    await state.clear()
+    logger.info(
+        "Channel custom template updated: id={} ({} belgi)",
+        ch_id, len(message.text),
+    )
+
+    await message.answer(
+        f"✅ Custom matn saqlandi ({len(message.text)} belgi).\n\n"
+        "Test ko'rish uchun /test_post."
+    )
+    # Refresh kanal detail ko'rinishi
+    await _show_channels_list(message, session, edit=False)
+
+
+@router.callback_query(F.data.startswith(f"{CB_CH_TEMPLATE_CLEAR}:"))
+async def clear_template(call: CallbackQuery, session: AsyncSession) -> None:
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+
+    ch.custom_caption_template = None
+    await session.flush()
+    await call.answer("🗑 Custom matn o'chirildi")
+    await view_channel(call, session)
 
 
 @router.callback_query(F.data.startswith(f"{CB_CH_TOGGLE}:"))

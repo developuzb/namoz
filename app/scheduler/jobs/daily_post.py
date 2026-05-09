@@ -98,6 +98,8 @@ async def run_daily_post(bot: Bot) -> None:
                 caption = bundle.caption
                 if ch.link:
                     caption = f"{caption}\n\n🔗 {ch.link}"
+                if ch.custom_caption_template:
+                    caption = f"{caption}\n\n{ch.custom_caption_template}"
 
                 ok = await _send_photo_safe(
                     bot=bot,

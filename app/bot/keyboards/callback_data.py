@@ -48,6 +48,8 @@ CB_CH_VILOYAT = "ch_vil"             # ch_vil:<region_id>
 CB_CH_TUMAN = "ch_tum"               # ch_tum:<region_id>
 CB_CH_BACK_VIL = "ch_vil_back"
 CB_CH_CANCEL = "ch:cancel"
+CB_CH_TEMPLATE_EDIT = "ch:tmpl"      # ch:tmpl:<id>
+CB_CH_TEMPLATE_CLEAR = "ch:tmpl_clr" # ch:tmpl_clr:<id>
 
 # ---------- Admin: Masjid time edit ----------
 CB_MT_VILOYAT = "mt_vil"             # mt_vil:<region_id>
