@@ -6,6 +6,7 @@ from app.bot.handlers.user.help import router as help_router
 from app.bot.handlers.user.info import router as info_router
 from app.bot.handlers.user.location import router as location_router
 from app.bot.handlers.user.menu import router as menu_router
+from app.bot.handlers.user.qibla import router as qibla_router
 from app.bot.handlers.user.regions import router as regions_router
 from app.bot.handlers.user.search import router as search_router
 from app.bot.handlers.user.settings import router as settings_router
@@ -19,6 +20,7 @@ router.include_router(location_router)
 router.include_router(search_router)
 router.include_router(regions_router)
 router.include_router(info_router)
+router.include_router(qibla_router)
 router.include_router(settings_router)
 router.include_router(common_router)
 

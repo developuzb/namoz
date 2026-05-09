@@ -25,6 +25,9 @@ CB_ONBOARD_SEARCH = "onboard:search"
 # ---------- Tomorrow times ----------
 CB_TOMORROW_TIMES = "my_times_tom"
 
+# ---------- Qibla ----------
+CB_QIBLA = "qibla"
+
 # ---------- Lokatsiya tasdiq ----------
 CB_LOC_CONFIRM = "loc:ok"          # loc:ok:<region_id>
 CB_LOC_CANCEL = "loc:cancel"

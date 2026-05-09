@@ -61,7 +61,7 @@ def tuman_keyboard(
 
 def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
     """Asosiy menyu — /start dan keyin yoki menyuga qaytishda."""
-    from app.bot.keyboards.callback_data import CB_TOMORROW_TIMES
+    from app.bot.keyboards.callback_data import CB_QIBLA, CB_TOMORROW_TIMES
 
     kb = InlineKeyboardBuilder()
     if has_subscriptions:
@@ -69,11 +69,12 @@ def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
         kb.button(text="🌅 Ertangi vaqtlar", callback_data=CB_TOMORROW_TIMES)
         kb.button(text="⏭ Keyingi farz", callback_data=CB_NEXT_FARZ)
         kb.button(text="🌙 Hozir qaysi nafl?", callback_data=CB_NAFL_NOW)
+        kb.button(text="🧭 Qibla yo'nalishi", callback_data=CB_QIBLA)
     kb.button(text="📍 Hudud tanlash", callback_data=CB_SELECT_REGION)
     kb.button(text="⚙️ Sozlamalar", callback_data=CB_SETTINGS)
 
     if has_subscriptions:
-        kb.adjust(2, 2, 2)  # [bugun | ertaga], [keyingi | nafl], [hudud | sozlamalar]
+        kb.adjust(2, 2, 1, 2)  # [bugun|ertaga] [keyingi|nafl] [qibla] [hudud|sozlamalar]
     else:
         kb.adjust(1, 1)
     return kb.as_markup()
