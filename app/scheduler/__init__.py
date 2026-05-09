@@ -12,6 +12,7 @@ from app.scheduler.jobs import (
     fire_farz_notification,
     refresh_farz_jobs,
     run_daily_post,
+    run_db_backup,
 )
 
 
@@ -49,8 +50,18 @@ def register_scheduler(scheduler: AsyncIOScheduler, bot: Bot) -> None:
         misfire_grace_time=600,
     )
 
+    # 3. DB backup — har kuni 03:00 da
+    scheduler.add_job(
+        run_db_backup,
+        trigger=CronTrigger(hour=3, minute=0, timezone=settings.TIMEZONE),
+        id="db_backup",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     logger.info(
-        "📅 Scheduler ulandi: daily_post @ {:02d}:{:02d}, refresh_farz @ 00:05",
+        "📅 Scheduler ulandi: daily_post @ {:02d}:{:02d}, "
+        "refresh_farz @ 00:05, db_backup @ 03:00",
         settings.post_hour, settings.post_minute,
     )
 
@@ -70,4 +81,5 @@ __all__ = [
     "refresh_farz_jobs",
     "register_scheduler",
     "run_daily_post",
+    "run_db_backup",
 ]

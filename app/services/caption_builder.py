@@ -7,10 +7,8 @@ from app.core.constants import (
     NAFL_GUIDE_URL,
     NAFL_ICONS,
     NAFL_PRAYERS,
-    VERSE_AR,
-    VERSE_REF,
-    VERSE_UZ,
 )
+from app.core.content import get_daily_ayah, get_daily_dua
 from app.utils.text_utils import (
     escape_html,
     format_milodiy_uz,
@@ -90,18 +88,29 @@ def build_post_caption(
     if attribution:
         lines.append(f"📚 <i>{escape_html(attribution)}</i>")
 
-    # ========== 4. Qur'on oyati ==========
+    # ========== 4. Qur'on oyati (har kuni boshqacha) ==========
+    day_ord = target_date.toordinal()
+    ayah = get_daily_ayah(day_ord)
     lines.append("")
-    lines.append(f"«{escape_html(VERSE_UZ)}»")
-    lines.append(f"{VERSE_AR} ({escape_html(VERSE_REF)})")
+    lines.append(f"📖 «{escape_html(ayah.uzbek)}»")
+    lines.append(f"{ayah.arabic}")
+    lines.append(f"<i>— {escape_html(ayah.ref)}</i>")
 
-    # ========== 5. Nafl batafsil ==========
+    # ========== 5. Kunning duosi (juft kunlarda — caption uzunligini chegaralash) ==========
+    if day_ord % 2 == 0:
+        dua = get_daily_dua(day_ord // 2)
+        lines.append("")
+        lines.append(f"🤲 <b>Kunning duosi:</b>")
+        lines.append(f"{dua.arabic}")
+        lines.append(f"<i>{escape_html(dua.uzbek)}</i>")
+
+    # ========== 6. Nafl batafsil ==========
     lines.append("")
     lines.append(
         f'🧭 <a href="{NAFL_GUIDE_URL}">Nafl nima? Qanday o\'qiladi (batafsil)</a>'
     )
 
-    # ========== 6. Kanal havolasi ==========
+    # ========== 7. Kanal havolasi ==========
     link = normalize_channel_link(channel_link)
     if link:
         lines.append("")
