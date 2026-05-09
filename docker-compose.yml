@@ -1,0 +1,35 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taqvim-bot
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      TZ: Asia/Tashkent
+      PYTHONUNBUFFERED: "1"
+
+    volumes:
+      # SQLite DB va rasm cache (host da saqlanadi)
+      - ./data:/app/data
+      # Log fayllar (tashqaridan ko'rish uchun)
+      - ./logs:/app/logs
+
+    # Loglarni cheklash (disk to'lib qolmasin)
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Tarmoq (kelajakda admin web panel uchun port ochish mumkin)
+    networks:
+      - bot-net
+
+networks:
+  bot-net:
+    driver: bridge

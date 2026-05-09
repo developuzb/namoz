@@ -1,0 +1,113 @@
+"""Bitta hudud uchun post yasash pipeline'i — kanal va DM ikkalasida ishlatiladi."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime
+from pathlib import Path
+
+import pytz
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.db.models.region import Region
+from app.db.repositories.masjid_time_repo import MasjidTimeRepository
+from app.db.repositories.region_repo import RegionRepository
+from app.services.caption_builder import build_post_caption
+from app.services.hijri_service import gregorian_to_hijri_uz
+from app.services.image_builder import make_prayer_image
+from app.services.prayer_provider import PrayerService
+from app.services.time_calculator import calculate_nafl_windows
+from app.utils.text_utils import format_milodiy_uz
+
+
+_ATTRIBUTION = {
+    "islomapi": "Vaqtlar O'zbekiston musulmonlari idorasi uslubida.",
+    "praytime": "Vaqtlar praytime.uz manbasidan.",
+    "aladhan":  "Vaqtlar Aladhan API (ISNA / Hanafi) bo'yicha hisoblangan.",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class PostBundle:
+    image_path: Path
+    caption: str
+    provider: str
+
+
+class PostService:
+    """Region uchun rasm + caption yasashning butun pipeline."""
+
+    def __init__(self, prayer_service: PrayerService | None = None) -> None:
+        self.prayer_service = prayer_service or PrayerService()
+
+    async def build_for_region(
+        self,
+        *,
+        session: AsyncSession,
+        region: Region,
+        target_date: date,
+        channel_link: str | None = None,
+    ) -> PostBundle:
+        """
+        Bitta hudud uchun to'liq post (rasm + caption) yasaydi.
+
+        Raises:
+            ProviderError: barcha provider lar ishlamasa.
+        """
+        settings = get_settings()
+        tz = pytz.timezone(settings.TIMEZONE)
+
+        pt = await self.prayer_service.fetch_for_region(region, target_date)
+
+        # Provider qaytargan IANA timezone'ni saqlab qo'yish (avtomatik to'g'rilash)
+        if pt.timezone and (not region.timezone or region.timezone in {"UTC", ""}):
+            from app.core.logger import logger
+            logger.info(
+                "Region {} timezone auto-set: {} -> {}",
+                region.name, region.timezone, pt.timezone,
+            )
+            region.timezone = pt.timezone
+            await session.flush()
+
+        mr = MasjidTimeRepository(session)
+        rr = RegionRepository(session)
+        masjid_times = await mr.get_for_region(region.id)
+        viloyat = await rr.get(region.parent_id) if region.parent_id else None
+        parent_name = (viloyat.name if viloyat else "").replace(" viloyati", "")
+
+        nafl = calculate_nafl_windows(
+            region_times=pt.times,
+            masjid_times=masjid_times,
+            target_date=target_date,
+            tz=tz,
+        )
+
+        hijriy = gregorian_to_hijri_uz(target_date)
+        milodiy = format_milodiy_uz(
+            datetime(target_date.year, target_date.month, target_date.day)
+        )
+
+        img_path = make_prayer_image(
+            region_name=region.name,
+            milodiy=milodiy,
+            hijriy=hijriy,
+            region_times=pt.times,
+            masjid_times=masjid_times,
+        )
+
+        caption = build_post_caption(
+            parent_region_name=parent_name,
+            region_name=region.name,
+            target_date=target_date,
+            hijriy=hijriy,
+            nafl_windows=nafl,
+            region_times=pt.times,
+            masjid_times=masjid_times,
+            channel_link=channel_link,
+            attribution=_ATTRIBUTION.get(pt.provider),
+        )
+
+        return PostBundle(image_path=img_path, caption=caption, provider=pt.provider)
+
+
+__all__ = ["PostBundle", "PostService"]

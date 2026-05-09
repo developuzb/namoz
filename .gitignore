@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+uv.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Claude Code (agent state)
+.claude/
+
+# Project-specific
+data/bot.db
+data/bot.db-journal
+data/images/*.png
+logs/*.log
+logs/*.log.*
+
+# Don't ignore directories themselves
+!data/.gitkeep
+!data/images/.gitkeep
+!logs/.gitkeep
+
+# Docker
+.dockerignore

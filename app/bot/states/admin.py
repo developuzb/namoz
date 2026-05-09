@@ -1,0 +1,28 @@
+"""Admin FSM holatlari."""
+from __future__ import annotations
+
+from aiogram.fsm.state import State, StatesGroup
+
+
+class MasjidTimeFSM(StatesGroup):
+    """Masjid vaqtini tahrirlash oqimi."""
+
+    choosing_region = State()
+    choosing_prayer = State()
+    entering_time = State()
+
+
+class ChannelFSM(StatesGroup):
+    """Kanal qo'shish oqimi."""
+
+    waiting_forward = State()
+    choosing_region = State()
+    entering_link = State()
+    entering_caption_template = State()
+
+
+class BroadcastFSM(StatesGroup):
+    """Broadcast yuborish oqimi."""
+
+    composing = State()
+    confirming = State()
