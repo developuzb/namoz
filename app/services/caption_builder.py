@@ -59,6 +59,15 @@ def build_post_caption(
         lines.append(f"<b>{region_safe}</b>")
     lines.append(f"<b>{milodiy} ({hafta}) — {hijriy_safe}</b>")
     lines.append(f"📅 <i>Namoz vaqtlari: {milodiy} ({hafta}) kuni uchun</i>")
+
+    # Juma kuni alohida tabrik (weekday() == 4 = Juma)
+    if target_date.weekday() == 4:
+        lines.append("")
+        lines.append("🕌 <b>Bugun — muborak Juma kuni!</b>")
+        lines.append(
+            "<i>«Kunlarning eng yaxshisi — Juma kunidir.» (Muslim)</i>"
+        )
+
     lines.append("")
 
     # ========== 2. Nafl vaqtlari ==========

@@ -109,3 +109,21 @@ def is_time_passed(
         return False
     current = now or now_in_tz(tz)
     return current >= dt
+
+
+#: Quiet hours diapazoni (mahalliy vaqt) — kechqurun eslatmalar o'chiriladi
+QUIET_HOURS_START = 23  # 23:00
+QUIET_HOURS_END = 5     # 05:00 ertasi
+
+
+def is_in_quiet_hours(now_local: datetime) -> bool:
+    """Mahalliy vaqt 23:00–05:00 oraligida bo'lsa True qaytaradi.
+
+    Quiet hours kechasini bosib o'tadi (23 → 24 → 0 → 5).
+    """
+    h = now_local.hour
+    if QUIET_HOURS_START <= QUIET_HOURS_END:
+        # Bir kun ichida (masalan 23 <= h <= 5 noto'g'ri bo'lardi)
+        return QUIET_HOURS_START <= h < QUIET_HOURS_END
+    # Yarim kechani bosib o'tadi (default holat)
+    return h >= QUIET_HOURS_START or h < QUIET_HOURS_END

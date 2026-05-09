@@ -41,6 +41,12 @@ class User(Base, TimestampMixin):
     #: Admin huquqi (ADMIN_IDS dan tashqari ham qo'shilishi mumkin)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    #: Tinch soatlar (23:00–05:00 mahalliy) — yoqilgan bo'lsa, kechqurun
+    #: farz/tahajjud eslatmalari yuborilmaydi
+    quiet_hours_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     # ---------------- Relationships ----------------
 
     subscriptions: Mapped[list[Subscription]] = relationship(

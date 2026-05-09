@@ -11,6 +11,7 @@ from app.bot.keyboards.callback_data import (
     CB_TOGGLE_DAILY,
     CB_TOGGLE_FARZ,
     CB_TOGGLE_NAFL,
+    CB_TOGGLE_QUIET,
 )
 from app.core.logger import logger
 from app.db.models.user import User
@@ -34,10 +35,13 @@ async def _render_settings(call: CallbackQuery, user: User, session: AsyncSessio
     notify_farz = any(s.notify_farz for s in user_subs)
     notify_nafl = any(s.notify_nafl for s in user_subs)
     daily_post = any(s.daily_post for s in user_subs)
+    quiet_hours = bool(user.quiet_hours_enabled)
 
     text = (
         "⚙️ <b>Sozlamalar</b>\n\n"
-        f"Sizning <b>{len(user_subs)}</b> ta obunangiz uchun amal qiladi:"
+        f"Sizning <b>{len(user_subs)}</b> ta obunangiz uchun amal qiladi.\n\n"
+        "<i>🌙 Tinch soatlar — yoqilgan bo'lsa, kechqurun (23:00–05:00) "
+        "farz va tahajjud eslatmalari yuborilmaydi.</i>"
     )
 
     await call.message.edit_text(
@@ -46,6 +50,7 @@ async def _render_settings(call: CallbackQuery, user: User, session: AsyncSessio
             notify_farz=notify_farz,
             notify_nafl=notify_nafl,
             daily_post=daily_post,
+            quiet_hours=quiet_hours,
         ),
     )
     await call.answer()
@@ -109,3 +114,28 @@ async def toggle_daily(
     call: CallbackQuery, user: User, session: AsyncSession
 ) -> None:
     await _toggle_field(call, user, session, "daily_post")
+
+
+@router.callback_query(F.data == CB_TOGGLE_QUIET)
+async def toggle_quiet_hours(
+    call: CallbackQuery, user: User, session: AsyncSession
+) -> None:
+    """User darajasidagi quiet hours toggle (subscriptions emas, users)."""
+    user.quiet_hours_enabled = not user.quiet_hours_enabled
+    await session.flush()
+
+    stats = StatsRepository(session)
+    await stats.track(
+        "settings_changed",
+        user_id=user.id,
+        meta={"field": "quiet_hours", "value": user.quiet_hours_enabled},
+    )
+    logger.info(
+        "Settings: tg_id={} quiet_hours={}", user.tg_id, user.quiet_hours_enabled,
+    )
+
+    await call.answer(
+        "🌙 Tinch soatlar yoqildi" if user.quiet_hours_enabled
+        else "🔔 Tinch soatlar o'chirildi",
+    )
+    await _render_settings(call, user, session)

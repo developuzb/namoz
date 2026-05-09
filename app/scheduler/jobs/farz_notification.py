@@ -7,7 +7,9 @@ Eski koddagi bug'lar tuzatildi:
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 
+import pytz
 from aiogram import Bot
 from aiogram.exceptions import (
     TelegramBadRequest,
@@ -23,6 +25,7 @@ from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_session
 from app.utils.text_utils import escape_html
+from app.utils.time_utils import is_in_quiet_hours
 
 
 def _build_text(prayer: str, time_str: str, region_name: str) -> str:
@@ -60,13 +63,26 @@ async def fire_farz_notification(
 
         text = _build_text(prayer, time_str, region.name)
 
+        # Quiet hours check uchun region tz
+        try:
+            region_tz = pytz.timezone(region.timezone or "Asia/Tashkent")
+        except pytz.UnknownTimeZoneError:
+            region_tz = pytz.timezone("Asia/Tashkent")
+        now_local = datetime.now(region_tz)
+
         sent = 0
         blocked = 0
         errors = 0
+        skipped_quiet = 0
 
         for sub in subs:
             user = sub.user
             if user.is_blocked:
+                continue
+
+            # Quiet hours: user yoqib qo'ygan bo'lsa, 23:00–05:00 da skip
+            if user.quiet_hours_enabled and is_in_quiet_hours(now_local):
+                skipped_quiet += 1
                 continue
 
             msg = None
@@ -118,8 +134,8 @@ async def fire_farz_notification(
             await asyncio.sleep(0.05)  # rate limit
 
     logger.info(
-        "🔔 Farz {}/{}: sent={} blocked={} errors={}",
-        region.name, prayer, sent, blocked, errors,
+        "🔔 Farz {}/{}: sent={} blocked={} errors={} quiet_skip={}",
+        region.name, prayer, sent, blocked, errors, skipped_quiet,
     )
 
 

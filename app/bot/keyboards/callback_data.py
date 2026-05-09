@@ -33,6 +33,7 @@ CB_LOC_CANCEL = "loc:cancel"
 CB_TOGGLE_FARZ = "toggle:farz"
 CB_TOGGLE_NAFL = "toggle:nafl"
 CB_TOGGLE_DAILY = "toggle:daily"
+CB_TOGGLE_QUIET = "toggle:quiet"
 
 # ---------- Admin ----------
 CB_ADMIN_ROOT = "admin:root"

@@ -24,6 +24,7 @@ from app.bot.keyboards.callback_data import (
     CB_TOGGLE_DAILY,
     CB_TOGGLE_FARZ,
     CB_TOGGLE_NAFL,
+    CB_TOGGLE_QUIET,
     CB_TUMAN,
     CB_VILOYAT,
 )
@@ -79,7 +80,8 @@ def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
 
 
 def settings_keyboard(
-    *, notify_farz: bool, notify_nafl: bool, daily_post: bool
+    *, notify_farz: bool, notify_nafl: bool, daily_post: bool,
+    quiet_hours: bool = False,
 ) -> InlineKeyboardMarkup:
     """Foydalanuvchi sozlamalari — toggle tugmalar."""
     kb = InlineKeyboardBuilder()
@@ -92,12 +94,16 @@ def settings_keyboard(
         callback_data=CB_TOGGLE_FARZ,
     )
     kb.button(
-        text=f"{mark(notify_nafl)} Nafl haqida eslatma",
+        text=f"{mark(notify_nafl)} Tahajjud eslatma",
         callback_data=CB_TOGGLE_NAFL,
     )
     kb.button(
         text=f"{mark(daily_post)} Kunlik post DM ga",
         callback_data=CB_TOGGLE_DAILY,
+    )
+    kb.button(
+        text=f"{mark(quiet_hours)} 🌙 Tinch soatlar (23:00–05:00)",
+        callback_data=CB_TOGGLE_QUIET,
     )
     kb.button(text="« Menu", callback_data=CB_MAIN_MENU)
     kb.adjust(1)
