@@ -1,0 +1,347 @@
+/* TAQVIMbot Mini App — Telegram WebApp theme-aware */
+
+:root {
+  /* Telegram WebApp theme vars (fallback values) */
+  --tg-bg: var(--tg-theme-bg-color, #ffffff);
+  --tg-text: var(--tg-theme-text-color, #222222);
+  --tg-hint: var(--tg-theme-hint-color, #999999);
+  --tg-link: var(--tg-theme-link-color, #2481cc);
+  --tg-button: var(--tg-theme-button-color, #2481cc);
+  --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
+  --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #f4f4f5);
+  --tg-section-bg: var(--tg-theme-section-bg-color, #ffffff);
+
+  /* Brand */
+  --brand-primary: #0c4628;
+  --brand-gold: #d4a85f;
+  --brand-coral: #f4516c;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --radius: 16px;
+  --radius-lg: 20px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  -webkit-tap-highlight-color: transparent;
+  padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fff5e1 0%, #ffe2c4 50%, #ffd6e8 100%);
+}
+
+.hidden { display: none !important; }
+
+/* Loading */
+.loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: var(--tg-text);
+}
+
+.spinner {
+  width: 48px; height: 48px;
+  border: 4px solid var(--tg-secondary-bg);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* App layout */
+#app { padding: 16px 16px 32px; max-width: 480px; margin: 0 auto; }
+
+/* Header */
+.header {
+  text-align: center;
+  padding: 16px 0 24px;
+}
+
+.header-emoji {
+  font-size: 48px;
+  line-height: 1;
+  margin-bottom: 8px;
+  animation: gentle-bounce 3s ease-in-out infinite;
+}
+
+@keyframes gentle-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #2d1f46;
+  margin-bottom: 4px;
+}
+
+.dates {
+  font-size: 14px;
+  color: #6b6076;
+  font-weight: 500;
+}
+
+/* Hero card */
+.hero {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  margin-bottom: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--brand-gold), var(--brand-coral));
+}
+
+.hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--brand-gold);
+  margin-bottom: 8px;
+}
+
+.hero-name {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--tg-hint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+
+.hero-time {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--tg-text);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin: 8px 0 12px;
+}
+
+.hero-countdown {
+  font-size: 14px;
+  color: var(--brand-primary);
+  font-weight: 600;
+  background: rgba(12, 70, 40, 0.08);
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+/* Section */
+.section {
+  background: white;
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tg-hint);
+  margin-bottom: 12px;
+}
+
+/* Prayer list */
+.prayer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prayer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px;
+  border-radius: 10px;
+  transition: background-color 0.2s;
+}
+
+.prayer-row.upcoming {
+  background: rgba(212, 168, 95, 0.15);
+}
+
+.prayer-row.passed { opacity: 0.55; }
+
+.prayer-row .icon {
+  font-size: 24px;
+  margin-right: 12px;
+}
+
+.prayer-row .name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--tg-text);
+}
+
+.prayer-row .time {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--tg-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Qibla */
+.qibla-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px;
+}
+
+.qibla-info {
+  flex: 1;
+}
+
+.qibla-bearing {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--brand-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.qibla-distance {
+  font-size: 14px;
+  color: var(--tg-hint);
+  margin-top: 4px;
+}
+
+.qibla-compass { width: 100px; height: 100px; flex-shrink: 0; }
+.compass-svg { width: 100%; height: 100%; }
+#qibla-arrow { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); transform-origin: 0 0; }
+
+/* Ayah */
+.ayah-card { text-align: center; padding: 8px 4px; }
+
+.ayah-arabic {
+  font-size: 20px;
+  line-height: 1.8;
+  color: var(--brand-primary);
+  margin-bottom: 12px;
+  direction: rtl;
+  font-family: "Amiri Quran", "Scheherazade New", serif;
+}
+
+.ayah-uzbek {
+  font-size: 15px;
+  font-style: italic;
+  color: var(--tg-text);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.ayah-ref {
+  font-size: 12px;
+  color: var(--brand-gold);
+  font-weight: 600;
+}
+
+/* Date nav */
+.date-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-secondary {
+  flex: 1;
+  padding: 12px 16px;
+  background: var(--tg-secondary-bg, #f4f4f5);
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tg-text);
+  cursor: pointer;
+  transition: transform 0.1s, background-color 0.2s;
+}
+
+.btn-secondary:active {
+  transform: scale(0.97);
+  background: var(--brand-gold);
+  color: white;
+}
+
+.btn-primary {
+  padding: 14px 28px;
+  background: var(--brand-primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding: 16px 0;
+  font-size: 12px;
+  color: var(--tg-hint);
+}
+
+.footer .brand {
+  margin-top: 4px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--brand-gold);
+}
+
+/* Error state */
+.error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.error-icon { font-size: 64px; }
+
+/* Dark mode (auto if Telegram is in dark) */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  }
+  .hero, .section { background: rgba(255, 255, 255, 0.06); backdrop-filter: blur(20px); }
+  .section-title, .ayah-uzbek, .hero-name { color: rgba(255, 255, 255, 0.6); }
+  .header h1, .hero-time, .prayer-row .name, .prayer-row .time, .ayah-arabic { color: white; }
+  .qibla-bearing { color: var(--brand-gold); }
+  .compass-svg circle:first-of-type { fill: rgba(255, 255, 255, 0.95); }
+  .btn-secondary { background: rgba(255, 255, 255, 0.1); color: white; }
+}

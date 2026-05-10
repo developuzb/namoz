@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>TAQVIMbot</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <p>Yuklanmoqda...</p>
+  </div>
+
+  <div id="app" class="hidden">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-emoji">🕌</div>
+      <h1 id="city-name">—</h1>
+      <p id="dates" class="dates">—</p>
+    </header>
+
+    <!-- Next prayer hero -->
+    <section class="hero">
+      <div class="hero-label">KEYINGI NAMOZ</div>
+      <div class="hero-name" id="next-name">—</div>
+      <div class="hero-time" id="next-time">--:--</div>
+      <div class="hero-countdown" id="countdown">⏳ —</div>
+    </section>
+
+    <!-- Today's times -->
+    <section class="section">
+      <h2 class="section-title">Bugungi vaqtlar</h2>
+      <div class="prayer-list" id="prayer-list">
+        <!-- Dynamic -->
+      </div>
+    </section>
+
+    <!-- Qibla -->
+    <section class="section" id="qibla-section">
+      <h2 class="section-title">🧭 Qibla yo'nalishi</h2>
+      <div class="qibla-card">
+        <div class="qibla-info">
+          <div class="qibla-bearing" id="qibla-bearing">—°</div>
+          <div class="qibla-distance" id="qibla-distance">— km</div>
+        </div>
+        <div class="qibla-compass">
+          <svg viewBox="-50 -50 100 100" class="compass-svg">
+            <circle cx="0" cy="0" r="45" fill="white" stroke="#d4a85f" stroke-width="2"/>
+            <text x="0" y="-35" text-anchor="middle" font-size="6" fill="#0c4628">Sh</text>
+            <text x="38" y="2" text-anchor="middle" font-size="6" fill="#0c4628">O'</text>
+            <text x="0" y="42" text-anchor="middle" font-size="6" fill="#0c4628">J</text>
+            <text x="-38" y="2" text-anchor="middle" font-size="6" fill="#0c4628">G'</text>
+            <g id="qibla-arrow" transform="rotate(0)">
+              <line x1="0" y1="0" x2="0" y2="-35" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
+              <polygon points="0,-38 -3,-30 3,-30" fill="#dc2626"/>
+            </g>
+            <circle cx="0" cy="0" r="3" fill="#0c4628"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ayah of the day -->
+    <section class="section">
+      <h2 class="section-title">📖 Kunning oyati</h2>
+      <div class="ayah-card">
+        <div class="ayah-arabic" id="ayah-arabic">—</div>
+        <div class="ayah-uzbek" id="ayah-uzbek">—</div>
+        <div class="ayah-ref" id="ayah-ref">—</div>
+      </div>
+    </section>
+
+    <!-- Date nav -->
+    <section class="section">
+      <div class="date-nav">
+        <button class="btn-secondary" id="btn-prev-day">‹ Kecha</button>
+        <button class="btn-secondary" id="btn-today">Bugun</button>
+        <button class="btn-secondary" id="btn-next-day">Erta ›</button>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p id="provider-attr">—</p>
+      <p class="brand">TAQVIMbot</p>
+    </footer>
+  </div>
+
+  <div id="error" class="error hidden">
+    <div class="error-icon">⚠️</div>
+    <p id="error-msg">Xato yuz berdi</p>
+    <button class="btn-primary" onclick="location.reload()">Qaytadan</button>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

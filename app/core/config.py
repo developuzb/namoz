@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     NOTIFY_FARZ_DEFAULT: bool = Field(default=True)
     NOTIFICATION_DELETE_AFTER: int = Field(default=300, ge=0)
 
+    # ---------------- Mini App (Telegram WebApp) ----------------
+    #: HTTPS URL — bo'sh bo'lsa WebApp tugmasi ko'rsatilmaydi.
+    #: Local dev uchun: `ngrok http 8080` → https://xxx.ngrok-free.app
+    WEBAPP_URL: str = Field(default="", description="Mini-app HTTPS URL")
+    #: aiohttp web server porti (lokal)
+    WEBAPP_PORT: int = Field(default=8080, ge=1, le=65535)
+
     # =================== Validators ===================
 
     @field_validator("DAILY_POST_TIME")

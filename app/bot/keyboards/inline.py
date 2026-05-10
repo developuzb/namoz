@@ -61,11 +61,24 @@ def tuman_keyboard(
 
 def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
     """Asosiy menyu — /start dan keyin yoki menyuga qaytishda."""
+    from aiogram.types import WebAppInfo
+
     from app.bot.keyboards.callback_data import (
         CB_QIBLA, CB_SHARE, CB_TOMORROW_TIMES,
     )
+    from app.core.config import get_settings
 
     kb = InlineKeyboardBuilder()
+
+    # 🚀 Mini App tugmasi — yuqorida ko'rinadi (eng zamonaviy)
+    webapp_url = get_settings().WEBAPP_URL
+    has_webapp = bool(webapp_url and has_subscriptions)
+    if has_webapp:
+        kb.button(
+            text="🚀 Mini App ochish",
+            web_app=WebAppInfo(url=webapp_url),
+        )
+
     if has_subscriptions:
         kb.button(text="🕌 Bugungi vaqtlar", callback_data=CB_MY_TIMES)
         kb.button(text="🌅 Ertangi vaqtlar", callback_data=CB_TOMORROW_TIMES)
@@ -77,8 +90,9 @@ def main_menu_keyboard(*, has_subscriptions: bool) -> InlineKeyboardMarkup:
     kb.button(text="📤 Botni do'stga yuborish", callback_data=CB_SHARE)
 
     if has_subscriptions:
-        # [bugun|ertaga] [keyingi|nafl] [qibla] [hudud|sozlamalar] [share]
-        kb.adjust(2, 2, 1, 2, 1)
+        # [mini-app?] [bugun|ertaga] [keyingi|nafl] [qibla] [hudud|sozlamalar] [share]
+        sizes = ([1] if has_webapp else []) + [2, 2, 1, 2, 1]
+        kb.adjust(*sizes)
     else:
         kb.adjust(1, 1, 1)
     return kb.as_markup()
