@@ -1,5 +1,7 @@
-// TAQVIMbot Mini App — vanilla JS
-// Telegram WebApp API: window.Telegram.WebApp
+// ═══════════════════════════════════════════════════════════════
+// TAQVIMbot Mini App v2 — vanilla JS
+// Animated progress ring · 3D tilt · live countdown · qibla compass
+// ═══════════════════════════════════════════════════════════════
 
 const tg = window.Telegram?.WebApp;
 const PRAYER_ICONS = {
@@ -11,8 +13,9 @@ const PRAYER_ICONS = {
   Xufton: "🌙",
 };
 const FARZ_NAMES = ["Bomdod", "Peshin", "Asr", "Shom", "Xufton"];
+const RING_R = 88;
+const RING_CIRC = 2 * Math.PI * RING_R; // ≈ 553
 
-// State
 const state = {
   user: null,
   subscriptions: [],
@@ -20,18 +23,21 @@ const state = {
   currentTimes: null,
   currentDate: new Date(),
   countdownTimer: null,
+  ringPrevWindow: null,
 };
 
-// ============== Init ==============
+// ═══════════ Init ═══════════
 async function init() {
   if (tg) {
     tg.ready();
     tg.expand();
+    tg.disableVerticalSwipes?.();
     tg.MainButton.hide();
   }
 
+  setup3DTilt();
+
   try {
-    // Load user info
     const meRes = await fetchJSON(buildUrl("/api/me"));
     state.user = meRes.user;
     state.subscriptions = meRes.subscriptions || [];
@@ -52,25 +58,52 @@ async function init() {
   }
 }
 
-// ============== Date navigation ==============
+// ═══════════ 3D Tilt ═══════════
+function setup3DTilt() {
+  document.querySelectorAll("[data-tilt]").forEach((card) => {
+    card.addEventListener("mousemove", (e) => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width;
+      const y = (e.clientY - r.top) / r.height;
+      const tiltX = (y - 0.5) * 8;
+      const tiltY = (x - 0.5) * -8;
+      card.style.transform =
+        `perspective(1200px) rotateX(${tiltX}deg) rotateY(${tiltY}deg) translateY(-2px)`;
+    });
+    card.addEventListener("mouseleave", () => {
+      card.style.transform = "";
+    });
+    card.addEventListener("touchstart", () => {
+      card.style.transition = "transform 0.3s var(--ease)";
+    });
+  });
+}
+
+// ═══════════ Date nav ═══════════
 function setupDateNav() {
   document.getElementById("btn-prev-day").onclick = () => {
     state.currentDate = new Date(state.currentDate.getTime() - 86400000);
     loadTimesForDate(state.currentDate);
+    hapticImpact();
   };
   document.getElementById("btn-next-day").onclick = () => {
     state.currentDate = new Date(state.currentDate.getTime() + 86400000);
     loadTimesForDate(state.currentDate);
+    hapticImpact();
   };
   document.getElementById("btn-today").onclick = () => {
     state.currentDate = new Date();
     loadTimesForDate(state.currentDate);
+    hapticImpact();
   };
 }
 
-// ============== Load times ==============
+function hapticImpact() {
+  try { tg?.HapticFeedback?.impactOccurred?.("light"); } catch (_) {}
+}
+
+// ═══════════ Load times ═══════════
 async function loadTimesForDate(d) {
-  showLoading(true);
   try {
     const iso = toISODate(d);
     const url = buildUrl(
@@ -96,14 +129,18 @@ async function loadTimesForDate(d) {
   }
 }
 
-// ============== Render ==============
+// ═══════════ Render ═══════════
 function renderTimes(data) {
   document.getElementById("city-name").textContent = data.region.name.toUpperCase();
 
   // Sanalar
   const d = new Date(data.date);
-  const dStr = `${d.getDate()}-${["yanvar","fevral","mart","aprel","may","iyun","iyul","avgust","sentyabr","oktyabr","noyabr","dekabr"][d.getMonth()]}, ${d.getFullYear()}`;
-  document.getElementById("dates").textContent = `${dStr}  ·  ${data.hijri}`;
+  const months = ["yanvar","fevral","mart","aprel","may","iyun","iyul","avgust","sentyabr","oktyabr","noyabr","dekabr"];
+  const weekdays = ["Dushanba","Seshanba","Chorshanba","Payshanba","Juma","Shanba","Yakshanba"];
+  const wd = weekdays[(d.getDay() + 6) % 7];
+  const dStr = `${d.getDate()}-${months[d.getMonth()]}, ${d.getFullYear()} · ${wd}`;
+  document.getElementById("date-greg").textContent = dStr;
+  document.getElementById("date-hijri").textContent = data.hijri;
 
   // Prayer list
   const list = document.getElementById("prayer-list");
@@ -111,19 +148,29 @@ function renderTimes(data) {
   const now = new Date();
   const isToday = data.date === toISODate(now);
 
+  // Determine upcoming farz (for "upcoming" highlight)
+  let upcomingFarz = null;
+  if (isToday) {
+    for (const p of FARZ_NAMES) {
+      const t = data.times[p];
+      if (!t) continue;
+      const [hh, mm] = t.split(":").map(Number);
+      const dt = new Date(now); dt.setHours(hh, mm, 0, 0);
+      if (dt > now) { upcomingFarz = p; break; }
+    }
+  }
+
   ["Bomdod", "Quyosh", "Peshin", "Asr", "Shom", "Xufton"].forEach((p) => {
     const t = data.times[p] || "—";
     const row = document.createElement("div");
     row.className = "prayer-row";
 
-    let cls = "";
     if (isToday && t !== "—") {
       const [hh, mm] = t.split(":").map(Number);
-      const ptDate = new Date(now);
-      ptDate.setHours(hh, mm, 0, 0);
-      if (ptDate < now) cls = "passed";
+      const dt = new Date(now); dt.setHours(hh, mm, 0, 0);
+      if (dt < now) row.classList.add("passed");
     }
-    if (cls) row.classList.add(cls);
+    if (p === upcomingFarz) row.classList.add("upcoming");
 
     row.innerHTML = `
       <span class="icon">${PRAYER_ICONS[p] || "🕌"}</span>
@@ -133,19 +180,15 @@ function renderTimes(data) {
     list.appendChild(row);
   });
 
-  // Hero — next farz
+  // Hero — next farz + ring + countdown
   if (isToday) {
-    updateNextFarz(data.times);
     startCountdown(data.times);
   } else {
-    // Boshqa kun — countdown yo'q
-    document.getElementById("next-name").textContent = "—";
-    document.getElementById("next-time").textContent = "--:--";
-    document.getElementById("countdown").textContent = "";
+    setHero("—", "--:--", "Boshqa kun", "🕌", 0);
     if (state.countdownTimer) clearInterval(state.countdownTimer);
   }
 
-  // Ayat
+  // Ayah
   if (data.ayah) {
     document.getElementById("ayah-arabic").textContent = data.ayah.arabic;
     document.getElementById("ayah-uzbek").textContent = `«${data.ayah.uzbek}»`;
@@ -161,58 +204,77 @@ function renderTimes(data) {
   document.getElementById("provider-attr").textContent = attr[data.provider] || data.provider;
 }
 
-function updateNextFarz(times) {
-  const now = new Date();
-  let next = null;
-  for (const p of FARZ_NAMES) {
-    const t = times[p];
-    if (!t) continue;
-    const [hh, mm] = t.split(":").map(Number);
-    const dt = new Date(now);
-    dt.setHours(hh, mm, 0, 0);
-    if (dt > now) {
-      next = { name: p, time: t, dt };
-      break;
-    }
-  }
-  if (!next) {
-    document.getElementById("next-name").textContent = "Ertangi Bomdod";
-    document.getElementById("next-time").textContent = times.Bomdod || "—";
-    document.getElementById("countdown").textContent = "Ertaga";
-    return;
-  }
-  document.getElementById("next-name").textContent = next.name;
-  document.getElementById("next-time").textContent = next.time;
+function setHero(name, time, countdown, emoji, progress) {
+  document.getElementById("next-name").textContent = name;
+  document.getElementById("next-time").textContent = time;
+  document.getElementById("countdown").innerHTML = countdown ? `⏳ ${countdown}` : "";
+  document.getElementById("hero-emoji").textContent = emoji;
+  // Progress: 0..1, ring goes from EMPTY to FULL as time approaches
+  const offset = RING_CIRC * (1 - progress);
+  document.getElementById("ring-progress").style.strokeDashoffset = offset;
 }
 
 function startCountdown(times) {
   if (state.countdownTimer) clearInterval(state.countdownTimer);
+  state.ringPrevWindow = null;
+
   function tick() {
     const now = new Date();
     let next = null;
+    let prev = null;
+
+    // Find next upcoming farz + the previous farz that just passed
+    const farzInOrder = [];
     for (const p of FARZ_NAMES) {
       const t = times[p];
       if (!t) continue;
       const [hh, mm] = t.split(":").map(Number);
-      const dt = new Date(now);
-      dt.setHours(hh, mm, 0, 0);
-      if (dt > now) { next = { name: p, dt }; break; }
+      const dt = new Date(now); dt.setHours(hh, mm, 0, 0);
+      farzInOrder.push({ name: p, dt, time: t });
+    }
+    for (const item of farzInOrder) {
+      if (item.dt > now) { next = item; break; }
+      prev = item;
     }
     if (!next) {
-      document.getElementById("countdown").textContent = "Ertangi vaqtlar uchun";
+      // All passed — next is tomorrow's Bomdod
+      const b = times.Bomdod;
+      if (b) {
+        const [hh, mm] = b.split(":").map(Number);
+        const dt = new Date(now); dt.setHours(hh, mm, 0, 0);
+        dt.setDate(dt.getDate() + 1);
+        next = { name: "Bomdod (ertangi)", dt, time: b };
+      }
+    }
+
+    if (!next) {
+      setHero("—", "--:--", "Ma'lumot yo'q", "🕌", 0);
       return;
     }
+
+    // Progress: from prev → next (or fallback: from now-1h → next)
+    const windowStart = prev ? prev.dt.getTime() : (next.dt.getTime() - 3600 * 1000);
+    const windowEnd = next.dt.getTime();
+    const elapsed = now.getTime() - windowStart;
+    const total = windowEnd - windowStart;
+    const progress = Math.max(0, Math.min(1, elapsed / total));
+
     const ms = next.dt - now;
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
     const s = Math.floor((ms % 60000) / 1000);
-    let text = "⏳ ";
-    if (h > 0) text += `${h}s ${m}d`;
-    else if (m > 0) text += `${m}d ${s}son`;
-    else text += `${s}son`;
-    text += " qoldi";
-    document.getElementById("countdown").textContent = text;
+    let cd = "";
+    if (h > 0) cd = `${h} soat ${m} daqiqa`;
+    else if (m > 0) cd = `${m} daqiqa ${s} soniya`;
+    else cd = `${s} soniya`;
+    cd += " qoldi";
+
+    const cleanName = next.name.replace(" (ertangi)", "");
+    const emoji = PRAYER_ICONS[cleanName] || "🕌";
+
+    setHero(next.name, next.time, cd, emoji, progress);
   }
+
   tick();
   state.countdownTimer = setInterval(tick, 1000);
 }
@@ -221,17 +283,12 @@ function renderQibla(q) {
   document.getElementById("qibla-bearing").textContent = `${q.bearing.toFixed(1)}°`;
   document.getElementById("qibla-distance").textContent =
     `${q.distance_km.toLocaleString("uz-UZ", { maximumFractionDigits: 0 })} km`;
-  // Arrow rotation (SVG already pointing up — adjust by bearing)
   document.getElementById("qibla-arrow").setAttribute(
     "transform", `rotate(${q.bearing})`
   );
 }
 
-// ============== Utils ==============
-function showLoading(v) {
-  document.getElementById("loading").classList.toggle("hidden", !v);
-}
-
+// ═══════════ Utils ═══════════
 function showError(msg) {
   document.getElementById("loading").classList.add("hidden");
   document.getElementById("app").classList.add("hidden");
@@ -244,7 +301,6 @@ function buildUrl(path) {
   if (tg?.initData) {
     url.searchParams.set("initData", tg.initData);
   } else if (tg?.initDataUnsafe?.user?.id) {
-    // dev fallback
     url.searchParams.set("tg_id", tg.initDataUnsafe.user.id);
   }
   return url.toString();
@@ -263,5 +319,4 @@ function toISODate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// ============== Boot ==============
 document.addEventListener("DOMContentLoaded", init);

@@ -2,92 +2,174 @@
 <html lang="uz">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0c4628">
   <title>TAQVIMbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Amiri+Quran&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div id="loading" class="loading">
-    <div class="spinner"></div>
-    <p>Yuklanmoqda...</p>
+  <!-- Animated mesh gradient layer -->
+  <div class="bg-mesh"></div>
+  <!-- Islamic geometric pattern overlay -->
+  <div class="bg-pattern"></div>
+  <!-- Subtle floating particles -->
+  <div class="bg-particles">
+    <span></span><span></span><span></span><span></span>
+    <span></span><span></span><span></span><span></span>
   </div>
 
-  <div id="app" class="hidden">
-    <!-- Header -->
+  <!-- Loading -->
+  <div id="loading" class="loading">
+    <div class="loading-orb"></div>
+    <p>Yuklanmoqda…</p>
+  </div>
+
+  <!-- Main app -->
+  <main id="app" class="hidden">
+    <!-- HEADER with decorative frame -->
     <header class="header">
-      <div class="header-emoji">🕌</div>
-      <h1 id="city-name">—</h1>
-      <p id="dates" class="dates">—</p>
+      <div class="header-ornament">
+        <span class="orn-line"></span>
+        <span class="orn-diamond">✦</span>
+        <span class="orn-line"></span>
+      </div>
+      <div class="header-icon">🕌</div>
+      <h1 id="city-name" class="city-name">—</h1>
+      <p id="date-greg" class="date date-greg">—</p>
+      <p id="date-hijri" class="date date-hijri">—</p>
+      <div class="header-ornament">
+        <span class="orn-line"></span>
+        <span class="orn-diamond">✦</span>
+        <span class="orn-line"></span>
+      </div>
     </header>
 
-    <!-- Next prayer hero -->
-    <section class="hero">
-      <div class="hero-label">KEYINGI NAMOZ</div>
-      <div class="hero-name" id="next-name">—</div>
-      <div class="hero-time" id="next-time">--:--</div>
+    <!-- HERO CARD with circular progress ring -->
+    <section class="hero-card card-tilt" data-tilt>
+      <div class="hero-ribbon">KEYINGI NAMOZ</div>
+
+      <div class="hero-ring-wrap">
+        <svg class="hero-ring" viewBox="0 0 200 200">
+          <defs>
+            <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#d4a85f"/>
+              <stop offset="50%" stop-color="#f4c785"/>
+              <stop offset="100%" stop-color="#0c4628"/>
+            </linearGradient>
+          </defs>
+          <circle class="ring-track" cx="100" cy="100" r="88"/>
+          <circle id="ring-progress" class="ring-progress" cx="100" cy="100" r="88"
+                  style="stroke-dasharray:553; stroke-dashoffset:553;"/>
+        </svg>
+        <div class="hero-inner">
+          <div class="hero-emoji" id="hero-emoji">🌅</div>
+          <div class="hero-name" id="next-name">—</div>
+          <div class="hero-time" id="next-time">--:--</div>
+        </div>
+      </div>
+
       <div class="hero-countdown" id="countdown">⏳ —</div>
     </section>
 
-    <!-- Today's times -->
-    <section class="section">
-      <h2 class="section-title">Bugungi vaqtlar</h2>
+    <!-- TODAY'S TIMES -->
+    <section class="card prayer-card">
+      <div class="card-header">
+        <span class="card-title">Bugungi vaqtlar</span>
+        <span class="card-deco">✧</span>
+      </div>
       <div class="prayer-list" id="prayer-list">
         <!-- Dynamic -->
       </div>
     </section>
 
-    <!-- Qibla -->
-    <section class="section" id="qibla-section">
-      <h2 class="section-title">🧭 Qibla yo'nalishi</h2>
-      <div class="qibla-card">
-        <div class="qibla-info">
-          <div class="qibla-bearing" id="qibla-bearing">—°</div>
-          <div class="qibla-distance" id="qibla-distance">— km</div>
-        </div>
+    <!-- QIBLA -->
+    <section class="card qibla-card" id="qibla-section">
+      <div class="card-header">
+        <span class="card-title">🧭 Qibla yo'nalishi</span>
+        <span class="card-deco">✧</span>
+      </div>
+      <div class="qibla-body">
         <div class="qibla-compass">
-          <svg viewBox="-50 -50 100 100" class="compass-svg">
-            <circle cx="0" cy="0" r="45" fill="white" stroke="#d4a85f" stroke-width="2"/>
-            <text x="0" y="-35" text-anchor="middle" font-size="6" fill="#0c4628">Sh</text>
-            <text x="38" y="2" text-anchor="middle" font-size="6" fill="#0c4628">O'</text>
-            <text x="0" y="42" text-anchor="middle" font-size="6" fill="#0c4628">J</text>
-            <text x="-38" y="2" text-anchor="middle" font-size="6" fill="#0c4628">G'</text>
+          <svg viewBox="-100 -100 200 200" class="compass-svg">
+            <defs>
+              <radialGradient id="compassBg">
+                <stop offset="0%" stop-color="#fffbe6"/>
+                <stop offset="100%" stop-color="#f5e9d0"/>
+              </radialGradient>
+              <linearGradient id="needleGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#dc2626"/>
+                <stop offset="100%" stop-color="#991b1b"/>
+              </linearGradient>
+            </defs>
+            <circle cx="0" cy="0" r="92" fill="url(#compassBg)" stroke="#d4a85f" stroke-width="3"/>
+            <circle cx="0" cy="0" r="76" fill="none" stroke="rgba(212,168,95,0.3)" stroke-width="1"/>
+            <text x="0" y="-58" text-anchor="middle" font-size="14" font-weight="700" fill="#0c4628">Sh</text>
+            <text x="58" y="5" text-anchor="middle" font-size="14" font-weight="700" fill="#0c4628">O'</text>
+            <text x="0" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#0c4628">J</text>
+            <text x="-58" y="5" text-anchor="middle" font-size="14" font-weight="700" fill="#0c4628">G'</text>
             <g id="qibla-arrow" transform="rotate(0)">
-              <line x1="0" y1="0" x2="0" y2="-35" stroke="#dc2626" stroke-width="3" stroke-linecap="round"/>
-              <polygon points="0,-38 -3,-30 3,-30" fill="#dc2626"/>
+              <line x1="0" y1="0" x2="0" y2="-65" stroke="url(#needleGrad)" stroke-width="6" stroke-linecap="round"/>
+              <polygon points="0,-72 -7,-58 7,-58" fill="#dc2626"/>
+              <circle cx="0" cy="-72" r="5" fill="#fef3c7" stroke="#d4a85f" stroke-width="2"/>
             </g>
-            <circle cx="0" cy="0" r="3" fill="#0c4628"/>
+            <circle cx="0" cy="0" r="8" fill="#0c4628"/>
+            <circle cx="0" cy="0" r="3" fill="#d4a85f"/>
           </svg>
+        </div>
+        <div class="qibla-info">
+          <div class="qibla-label">Azimut</div>
+          <div class="qibla-bearing" id="qibla-bearing">—°</div>
+          <div class="qibla-divider"></div>
+          <div class="qibla-label">Ka'bagacha</div>
+          <div class="qibla-distance" id="qibla-distance">— km</div>
         </div>
       </div>
     </section>
 
-    <!-- Ayah of the day -->
-    <section class="section">
-      <h2 class="section-title">📖 Kunning oyati</h2>
-      <div class="ayah-card">
-        <div class="ayah-arabic" id="ayah-arabic">—</div>
+    <!-- AYAH -->
+    <section class="card ayah-card">
+      <div class="card-header">
+        <span class="card-title">📖 Kunning oyati</span>
+        <span class="card-deco">✧</span>
+      </div>
+      <div class="ayah-body">
+        <div class="ayah-arabic" id="ayah-arabic" dir="rtl">—</div>
+        <div class="ayah-divider">
+          <span></span><span class="dot">◆</span><span></span>
+        </div>
         <div class="ayah-uzbek" id="ayah-uzbek">—</div>
         <div class="ayah-ref" id="ayah-ref">—</div>
       </div>
     </section>
 
-    <!-- Date nav -->
-    <section class="section">
-      <div class="date-nav">
-        <button class="btn-secondary" id="btn-prev-day">‹ Kecha</button>
-        <button class="btn-secondary" id="btn-today">Bugun</button>
-        <button class="btn-secondary" id="btn-next-day">Erta ›</button>
-      </div>
+    <!-- DATE NAVIGATION -->
+    <section class="date-nav">
+      <button class="nav-btn" id="btn-prev-day">
+        <span class="nav-btn-arrow">‹</span>
+        <span class="nav-btn-label">Kecha</span>
+      </button>
+      <button class="nav-btn nav-btn-primary" id="btn-today">
+        <span class="nav-btn-label">Bugun</span>
+      </button>
+      <button class="nav-btn" id="btn-next-day">
+        <span class="nav-btn-label">Erta</span>
+        <span class="nav-btn-arrow">›</span>
+      </button>
     </section>
 
-    <!-- Footer -->
+    <!-- FOOTER -->
     <footer class="footer">
+      <div class="footer-line"></div>
       <p id="provider-attr">—</p>
-      <p class="brand">TAQVIMbot</p>
+      <p class="brand">✦ TAQVIMbot ✦</p>
     </footer>
-  </div>
+  </main>
 
+  <!-- Error state -->
   <div id="error" class="error hidden">
     <div class="error-icon">⚠️</div>
     <p id="error-msg">Xato yuz berdi</p>
