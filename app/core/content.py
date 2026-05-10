@@ -157,6 +157,65 @@ DUAS: tuple[Dua, ...] = (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class Hadith:
+    text_uz: str
+    source: str  # "Buxoriy" / "Muslim" / "Tirmiziy" / etc.
+
+
+# ============== 12 ta qisqa hadis (asosan namoz haqida) ==============
+HADITHS: tuple[Hadith, ...] = (
+    Hadith(
+        text_uz="«Mo'min va kofir o'rtasidagi farq — namozni tark qilishdir.»",
+        source="Muslim",
+    ),
+    Hadith(
+        text_uz="«Qiyomat kunida bandadan so'raladigan birinchi narsa namoz bo'ladi.»",
+        source="Tirmiziy",
+    ),
+    Hadith(
+        text_uz="«Beshta namoz — eshik oldidan oqib turgan daryo kabi: u kuniga besh marta cho'milgan kishi tanasida hech qanday kir qolmaydi.»",
+        source="Buxoriy va Muslim",
+    ),
+    Hadith(
+        text_uz="«Eng yaxshi amal — vaqtida o'qilgan namoz.»",
+        source="Buxoriy",
+    ),
+    Hadith(
+        text_uz="«Kim ikki sovuq vaqtni (Bomdod va Asrni) o'qisa, jannatga kiradi.»",
+        source="Buxoriy",
+    ),
+    Hadith(
+        text_uz="«Jamoat namozi yolg'iz o'qilgan namozdan yigirma yetti baravar afzal.»",
+        source="Buxoriy va Muslim",
+    ),
+    Hadith(
+        text_uz="«Bandaning Robbiga eng yaqin holati — sajda holatidir.»",
+        source="Muslim",
+    ),
+    Hadith(
+        text_uz="«Juma kuni — kunlarning eng yaxshisidir. O'sha kunda Odam alayhissalom yaratilgan.»",
+        source="Muslim",
+    ),
+    Hadith(
+        text_uz="«Kim chiroyli tahorat olib, namoz o'qisa, oldingi kichik gunohlari kechiriladi.»",
+        source="Buxoriy va Muslim",
+    ),
+    Hadith(
+        text_uz="«Vitr namozini saqlanglar — bu Allohning sizga sevimli sovg'asidir.»",
+        source="Tirmiziy",
+    ),
+    Hadith(
+        text_uz="«Kim Bomdoddan keyin masjidda quyosh chiqquncha o'tirib zikr qilsa, bir to'liq haj va umra savobiga ega bo'ladi.»",
+        source="Tirmiziy",
+    ),
+    Hadith(
+        text_uz="«Ey o'g'lim! Namozni qoim qil — bu eng buyuk amaldir.»",
+        source="Luqmonning o'g'liga vasiyati — Luqmon 31:17",
+    ),
+)
+
+
 def get_daily_ayah(day_ordinal: int) -> Ayah:
     """Bugungi sanaga ko'ra rotating oyat tanlaydi."""
     return QURAN_AYAHS_PRAYER[day_ordinal % len(QURAN_AYAHS_PRAYER)]
@@ -167,11 +226,19 @@ def get_daily_dua(day_ordinal: int) -> Dua:
     return DUAS[day_ordinal % len(DUAS)]
 
 
+def get_daily_hadith(day_ordinal: int) -> Hadith:
+    """Bugungi sanaga ko'ra rotating hadis tanlaydi."""
+    return HADITHS[day_ordinal % len(HADITHS)]
+
+
 __all__ = [
     "Ayah",
     "DUAS",
     "Dua",
+    "HADITHS",
+    "Hadith",
     "QURAN_AYAHS_PRAYER",
     "get_daily_ayah",
     "get_daily_dua",
+    "get_daily_hadith",
 ]

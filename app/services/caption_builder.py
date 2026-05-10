@@ -8,7 +8,8 @@ from app.core.constants import (
     NAFL_ICONS,
     NAFL_PRAYERS,
 )
-from app.core.content import get_daily_ayah, get_daily_dua
+from app.core.content import get_daily_ayah, get_daily_dua, get_daily_hadith
+from app.services.holidays import get_holiday, get_ramadan_day
 from app.utils.text_utils import (
     escape_html,
     format_milodiy_uz,
@@ -58,10 +59,22 @@ def build_post_caption(
     else:
         lines.append(f"<b>{region_safe}</b>")
     lines.append(f"<b>{milodiy} ({hafta}) — {hijriy_safe}</b>")
+
+    # Ramazon kuni badge
+    ramadan_day = get_ramadan_day(target_date)
+    if ramadan_day:
+        lines.append(f"🌙 <b>RAMAZON — {ramadan_day}-kun</b>")
+
     lines.append(f"📅 <i>Namoz vaqtlari: {milodiy} ({hafta}) kuni uchun</i>")
 
-    # Juma kuni alohida tabrik (weekday() == 4 = Juma)
-    if target_date.weekday() == 4:
+    # Hijriy bayram tabrigi (Mavlud, Hayit, Lailatul Qadr, Arafa, Ashura, ...)
+    holiday = get_holiday(target_date)
+    if holiday:
+        lines.append("")
+        lines.append(holiday.greeting)
+
+    # Juma kuni alohida tabrik (weekday() == 4 = Juma) — bayram bilan birga ham OK
+    if target_date.weekday() == 4 and (not holiday or holiday.key != "eid_al_fitr"):
         lines.append("")
         lines.append("🕌 <b>Bugun — muborak Juma kuni!</b>")
         lines.append(
@@ -105,13 +118,21 @@ def build_post_caption(
     lines.append(f"{ayah.arabic}")
     lines.append(f"<i>— {escape_html(ayah.ref)}</i>")
 
-    # ========== 5. Kunning duosi (juft kunlarda — caption uzunligini chegaralash) ==========
+    # ========== 5. Kunning duosi yoki hadisi (caption length cheklov) ==========
     if day_ord % 2 == 0:
+        # Juft kun — dua
         dua = get_daily_dua(day_ord // 2)
         lines.append("")
-        lines.append(f"🤲 <b>Kunning duosi:</b>")
+        lines.append("🤲 <b>Kunning duosi:</b>")
         lines.append(f"{dua.arabic}")
         lines.append(f"<i>{escape_html(dua.uzbek)}</i>")
+    else:
+        # Toq kun — hadis
+        hadith = get_daily_hadith(day_ord // 2)
+        lines.append("")
+        lines.append("📜 <b>Kunning hadisi:</b>")
+        lines.append(f"<i>{escape_html(hadith.text_uz)}</i>")
+        lines.append(f"— <i>{escape_html(hadith.source)}</i>")
 
     # ========== 6. Nafl batafsil ==========
     lines.append("")
