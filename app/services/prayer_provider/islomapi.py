@@ -104,6 +104,51 @@ class IslomapiProvider(PrayerProvider):
             provider=self.name,
         )
 
+    async def fetch_month_raw(
+        self, region_key: str, year: int, month: int
+    ) -> dict[int, dict[str, str]]:
+        """Oyning barcha kunlari uchun vaqtlarni qaytaradi: {day: {prayer: time}}.
+
+        islomapi.uz API faqat oy parametrini oladi (yil yo'q — joriy yil ishlatiladi),
+        shu sababli `year` argumenti hozircha ishlatilmaydi.
+        """
+        url = f"{self.base_url}/api/monthly"
+        params = {"region": region_key, "month": str(month)}
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+        except httpx.TimeoutException as e:
+            raise ProviderTimeoutError(f"islomapi monthly timeout: {url}") from e
+        except httpx.HTTPStatusError as e:
+            raise ProviderUnavailableError(
+                f"islomapi HTTP {e.response.status_code}"
+            ) from e
+        except httpx.RequestError as e:
+            raise ProviderUnavailableError(f"islomapi network: {e}") from e
+
+        try:
+            payload = response.json()
+        except ValueError as e:
+            raise ProviderParseError(f"islomapi: noto'g'ri JSON: {e}") from e
+
+        if not isinstance(payload, list) or not payload:
+            raise RegionNotFoundError(region_key)
+
+        out: dict[int, dict[str, str]] = {}
+        for record in payload:
+            if not isinstance(record, dict):
+                continue
+            day = record.get("day")
+            raw_times = record.get("times")
+            if not isinstance(day, int) or not isinstance(raw_times, dict):
+                continue
+            normalized = self._normalize(raw_times)
+            if normalized:
+                out[day] = normalized
+        return out
+
     @staticmethod
     def _find_day(payload: Any, day: int) -> dict[str, Any] | None:
         """Oy javobi ichidan kerakli kunni topish."""

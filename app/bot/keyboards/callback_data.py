@@ -45,6 +45,20 @@ CB_ADMIN_CHANNELS = "admin:channels"
 CB_ADMIN_MASJID = "admin:masjid"
 CB_ADMIN_BROADCAST = "admin:broadcast"
 CB_ADMIN_TEST_POST = "admin:test_post"
+CB_ADMIN_REGIONS = "admin:regions"
+CB_ADMIN_USERS = "admin:users"
+
+# ---------- Admin: Region CRUD ----------
+CB_RG_VIEW = "rg:view"               # rg:view:<id>
+CB_RG_TOGGLE_ACTIVE = "rg:active"    # rg:active:<id>
+CB_RG_DELETE = "rg:del"              # rg:del:<id>
+CB_RG_DELETE_OK = "rg:del_ok"        # rg:del_ok:<id>
+
+# ---------- Admin: Users ----------
+CB_USR_VIEW = "usr:view"             # usr:view:<id>
+CB_USR_BLOCK = "usr:block"           # usr:block:<id>
+CB_USR_UNBLOCK = "usr:unblock"       # usr:unblock:<id>
+CB_USR_PAGE = "usr:page"             # usr:page:<n>
 
 # ---------- Admin: Channel CRUD ----------
 CB_CH_ADD = "ch:add"

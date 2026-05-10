@@ -1,6 +1,7 @@
 """User handlerlari — barcha foydalanuvchilar uchun."""
 from aiogram import Router
 
+from app.bot.handlers.user.calendar import router as calendar_router
 from app.bot.handlers.user.common import router as common_router
 from app.bot.handlers.user.help import router as help_router
 from app.bot.handlers.user.info import router as info_router
@@ -21,6 +22,7 @@ router.include_router(search_router)
 router.include_router(regions_router)
 router.include_router(info_router)
 router.include_router(qibla_router)
+router.include_router(calendar_router)
 router.include_router(settings_router)
 router.include_router(common_router)
 

@@ -137,11 +137,15 @@ def location_confirm_keyboard(region_id: int) -> InlineKeyboardMarkup:
 
 def admin_panel_keyboard() -> InlineKeyboardMarkup:
     """Admin paneli asosiy menyu."""
+    from app.bot.keyboards.callback_data import CB_ADMIN_REGIONS, CB_ADMIN_USERS
+
     kb = InlineKeyboardBuilder()
     kb.button(text="📊 Statistika", callback_data=CB_ADMIN_STATS)
     kb.button(text="📢 Kanallar", callback_data=CB_ADMIN_CHANNELS)
+    kb.button(text="📍 Hududlar", callback_data=CB_ADMIN_REGIONS)
+    kb.button(text="👥 Foydalanuvchilar", callback_data=CB_ADMIN_USERS)
     kb.button(text="🕌 Masjid vaqtlari", callback_data=CB_ADMIN_MASJID)
     kb.button(text="📨 Broadcast", callback_data=CB_ADMIN_BROADCAST)
     kb.button(text="🧪 Test post", callback_data=CB_ADMIN_TEST_POST)
-    kb.adjust(2, 2, 1)
+    kb.adjust(2, 2, 2, 1)
     return kb.as_markup()
