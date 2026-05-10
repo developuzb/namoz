@@ -1,11 +1,14 @@
-"""Admin statistika dashboard — `/stats` va admin paneldagi 📊 tugmasi."""
+"""Admin statistika dashboard — `/stats` va admin paneldagi 📊 tugmasi.
+
+`/charts` admin komandasi qo'shimcha matplotlib grafiklarini PNG sifatida yuboradi.
+"""
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
 from aiogram import F, Router
 from aiogram.filters import Command
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, Message
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +19,7 @@ from app.db.models.subscription import Subscription
 from app.db.models.user import User
 from app.db.repositories.post_log_repo import PostLogRepository
 from app.db.repositories.stats_repo import StatsRepository
+from app.services.charts import render_growth_chart, render_post_status_chart
 
 router = Router(name="admin.stats")
 router.message.filter(AdminFilter())
@@ -134,3 +138,30 @@ async def cb_stats(call: CallbackQuery, session: AsyncSession) -> None:
     s = await _gather_stats(session)
     await call.message.answer(_format_stats(s))
     await call.answer()
+
+
+@router.message(Command("charts"))
+async def cmd_charts(message: Message, session: AsyncSession) -> None:
+    """Stats grafiklar — matplotlib PNG sifatida 2 ta rasm yuboriladi."""
+    notice = await message.answer("⏳ Grafiklar yasalmoqda...")
+
+    try:
+        growth_png = await render_growth_chart(session, days=30)
+        status_png = await render_post_status_chart(session, hours=24)
+    except Exception as e:  # noqa: BLE001
+        await message.answer(f"❌ Grafiklar yasalmadi: <code>{e}</code>")
+        return
+
+    try:
+        await notice.delete()
+    except Exception:  # noqa: BLE001
+        pass
+
+    await message.answer_photo(
+        photo=BufferedInputFile(growth_png, filename="growth.png"),
+        caption="📈 <b>O'sish — 30 kun</b>\nYangi userlar va eventlar diagrammasi.",
+    )
+    await message.answer_photo(
+        photo=BufferedInputFile(status_png, filename="status.png"),
+        caption="📊 <b>Postlar holati — 24 soat</b>\nYuborildi / xato / bloklangan.",
+    )

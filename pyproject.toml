@@ -32,6 +32,8 @@ dependencies = [
     # HTML parsing (zaxira provider uchun)
     "beautifulsoup4>=4.12.3",
     "lxml>=5.3.0",
+    # Admin uchun stats grafiklar
+    "matplotlib>=3.10.0",
 ]
 
 [dependency-groups]
