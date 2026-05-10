@@ -32,7 +32,12 @@ def create_web_app() -> web.Application:
     if webapp_static.exists():
         app.router.add_static("/static/", path=webapp_static, name="static")
 
-    # 3. Asosiy sahifa
+    # 3. 3D emoji PNG (Microsoft Fluent UI) — bot va WebApp baham
+    emojis_dir = settings.base_dir / "static" / "emojis"
+    if emojis_dir.exists():
+        app.router.add_static("/emojis/", path=emojis_dir, name="emojis")
+
+    # 4. Asosiy sahifa
     app.router.add_get("/", serve_webapp_index)
     app.router.add_get("/webapp", serve_webapp_index)
 

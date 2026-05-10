@@ -4,13 +4,14 @@
 // ═══════════════════════════════════════════════════════════════
 
 const tg = window.Telegram?.WebApp;
+// Microsoft Fluent UI 3D emojis (static/emojis/) — qurilmadan qat'i nazar bir xil ko'rinadi
 const PRAYER_ICONS = {
-  Bomdod: "🌅",
-  Quyosh: "🌄",
-  Peshin: "🌞",
-  Asr: "🌤",
-  Shom: "🌇",
-  Xufton: "🌙",
+  Bomdod: "/emojis/sunrise.png",
+  Quyosh: "/emojis/sunrise_mt.png",
+  Peshin: "/emojis/sun_face.png",
+  Asr:    "/emojis/sun_cloud.png",
+  Shom:   "/emojis/sunset.png",
+  Xufton: "/emojis/moon.png",
 };
 const FARZ_NAMES = ["Bomdod", "Peshin", "Asr", "Shom", "Xufton"];
 const RING_R = 88;
@@ -172,8 +173,9 @@ function renderTimes(data) {
     }
     if (p === upcomingFarz) row.classList.add("upcoming");
 
+    const iconSrc = PRAYER_ICONS[p] || "/emojis/kaaba.png";
     row.innerHTML = `
-      <span class="icon">${PRAYER_ICONS[p] || "🕌"}</span>
+      <img class="icon" src="${iconSrc}" alt="${p}" loading="lazy" />
       <span class="name">${p}</span>
       <span class="time">${t}</span>
     `;
@@ -184,7 +186,7 @@ function renderTimes(data) {
   if (isToday) {
     startCountdown(data.times);
   } else {
-    setHero("—", "--:--", "Boshqa kun", "🕌", 0);
+    setHero("—", "--:--", "Boshqa kun", "/emojis/kaaba.png", 0);
     if (state.countdownTimer) clearInterval(state.countdownTimer);
   }
 
@@ -204,11 +206,14 @@ function renderTimes(data) {
   document.getElementById("provider-attr").textContent = attr[data.provider] || data.provider;
 }
 
-function setHero(name, time, countdown, emoji, progress) {
+function setHero(name, time, countdown, emojiSrc, progress) {
   document.getElementById("next-name").textContent = name;
   document.getElementById("next-time").textContent = time;
   document.getElementById("countdown").innerHTML = countdown ? `⏳ ${countdown}` : "";
-  document.getElementById("hero-emoji").textContent = emoji;
+  const heroImg = document.getElementById("hero-emoji");
+  if (emojiSrc && emojiSrc.startsWith("/")) {
+    heroImg.src = emojiSrc;
+  }
   // Progress: 0..1, ring goes from EMPTY to FULL as time approaches
   const offset = RING_CIRC * (1 - progress);
   document.getElementById("ring-progress").style.strokeDashoffset = offset;
@@ -270,9 +275,9 @@ function startCountdown(times) {
     cd += " qoldi";
 
     const cleanName = next.name.replace(" (ertangi)", "");
-    const emoji = PRAYER_ICONS[cleanName] || "🕌";
+    const emojiSrc = PRAYER_ICONS[cleanName] || "/emojis/kaaba.png";
 
-    setHero(next.name, next.time, cd, emoji, progress);
+    setHero(next.name, next.time, cd, emojiSrc, progress);
   }
 
   tick();

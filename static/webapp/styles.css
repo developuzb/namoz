@@ -219,10 +219,11 @@ body {
 }
 
 .header-icon {
-  font-size: 56px;
-  line-height: 1;
-  margin-bottom: 8px;
-  filter: drop-shadow(0 8px 16px rgba(45, 31, 70, 0.2));
+  display: block;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 8px;
+  filter: drop-shadow(0 10px 20px rgba(45, 31, 70, 0.28));
   animation: floatY 5s ease-in-out infinite;
 }
 @keyframes floatY {
@@ -361,9 +362,10 @@ body {
   gap: 6px;
 }
 .hero-emoji {
-  font-size: 56px;
-  line-height: 1;
-  filter: drop-shadow(0 6px 12px rgba(45, 31, 70, 0.18));
+  display: block;
+  width: 80px;
+  height: 80px;
+  filter: drop-shadow(0 8px 16px rgba(45, 31, 70, 0.22));
   animation: floatY 4s ease-in-out infinite;
 }
 .hero-name {
@@ -432,10 +434,15 @@ body {
 .prayer-row.passed { opacity: 0.45; }
 
 .prayer-row .icon {
-  font-size: 26px;
-  width: 34px;
-  text-align: center;
-  filter: drop-shadow(0 3px 6px rgba(45, 31, 70, 0.15));
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 4px 8px rgba(45, 31, 70, 0.18));
+  transition: transform 0.3s var(--ease);
+}
+.prayer-row.upcoming .icon {
+  transform: scale(1.1);
+  filter: drop-shadow(0 4px 12px rgba(212, 168, 95, 0.6));
 }
 .prayer-row .name {
   flex: 1;
