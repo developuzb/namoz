@@ -11,6 +11,7 @@ from app.bot.handlers.user.qibla import router as qibla_router
 from app.bot.handlers.user.regions import router as regions_router
 from app.bot.handlers.user.search import router as search_router
 from app.bot.handlers.user.settings import router as settings_router
+from app.bot.handlers.user.share import router as share_router
 from app.bot.handlers.user.start import router as start_router
 
 router = Router(name="user")
@@ -23,6 +24,7 @@ router.include_router(regions_router)
 router.include_router(info_router)
 router.include_router(qibla_router)
 router.include_router(calendar_router)
+router.include_router(share_router)
 router.include_router(settings_router)
 router.include_router(common_router)
 

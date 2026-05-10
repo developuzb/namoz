@@ -80,6 +80,9 @@ def build_post_caption(
         lines.append(
             "<i>«Kunlarning eng yaxshisi — Juma kunidir.» (Muslim)</i>"
         )
+        lines.append(
+            "🤲 <i>Sadaqa qilish, surai Kahf o'qish va salavot aytishni unutmang.</i>"
+        )
 
     lines.append("")
 
