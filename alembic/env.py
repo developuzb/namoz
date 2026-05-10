@@ -19,6 +19,7 @@ from app.db.models import (  # noqa: F401  -- import for side-effect
     PostLog,
     Region,
     StatEvent,
+    SubscribedChat,
     Subscription,
     User,
 )

@@ -4,6 +4,7 @@ from app.db.models.masjid_time import MasjidTime
 from app.db.models.post_log import PostLog
 from app.db.models.region import Region
 from app.db.models.stats import StatEvent
+from app.db.models.subscribed_chat import SubscribedChat
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
 
@@ -13,6 +14,7 @@ __all__ = [
     "PostLog",
     "Region",
     "StatEvent",
+    "SubscribedChat",
     "Subscription",
     "User",
 ]

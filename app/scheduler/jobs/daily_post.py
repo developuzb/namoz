@@ -28,6 +28,7 @@ from app.db.models.subscription import Subscription
 from app.db.repositories.channel_repo import ChannelRepository
 from app.db.repositories.post_log_repo import PostLogRepository
 from app.db.repositories.region_repo import RegionRepository
+from app.db.repositories.subscribed_chat_repo import SubscribedChatRepository
 from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_session
@@ -45,11 +46,15 @@ async def run_daily_post(bot: Bot) -> None:
     async with get_session() as session:
         ch_repo = ChannelRepository(session)
         sub_repo = SubscriptionRepository(session)
+        sc_repo = SubscribedChatRepository(session)
         log_repo = PostLogRepository(session)
         user_repo = UserRepository(session)
         rr = RegionRepository(session)
 
         channels = await ch_repo.list_active_with_region()
+        group_chats = await sc_repo.list_active_with_region()
+        # Faqat daily_post=True bo'lgan guruhlar
+        group_chats = [g for g in group_chats if g.daily_post]
 
         # daily_post=True bo'lgan obunalardagi region_id'larni yig'amiz
         result = await session.execute(
@@ -58,12 +63,16 @@ async def run_daily_post(bot: Bot) -> None:
             .where(Subscription.daily_post.is_(True))
         )
         sub_region_ids = {r[0] for r in result}
+        group_region_ids = {g.region_id for g in group_chats}
 
-        region_ids: set[int] = {ch.region_id for ch in channels} | sub_region_ids
+        region_ids: set[int] = (
+            {ch.region_id for ch in channels} | sub_region_ids | group_region_ids
+        )
 
         logger.info(
-            "🗓 Kunlik post boshlandi: {} region (channels={}, sub_regions={})",
-            len(region_ids), len(channels), len(sub_region_ids),
+            "🗓 Kunlik post boshlandi: {} region (channels={}, groups={}, "
+            "sub_regions={})",
+            len(region_ids), len(channels), len(group_chats), len(sub_region_ids),
         )
 
         sent_ok = 0
@@ -117,7 +126,27 @@ async def run_daily_post(bot: Bot) -> None:
                     sent_fail += 1
                 await asyncio.sleep(_SEND_DELAY)
 
-            # 3. DM obunachilariga
+            # 3. Guruh chatlariga
+            for gc in group_chats:
+                if gc.region_id != region_id:
+                    continue
+                ok = await _send_photo_safe(
+                    bot=bot,
+                    chat_id=gc.chat_id,
+                    image_path=str(bundle.image_path),
+                    caption=bundle.caption,
+                    log_repo=log_repo,
+                    user_repo=None,  # group — mark_blocked yo'q
+                    region_id=region_id,
+                    post_type="daily_group",
+                )
+                if ok:
+                    sent_ok += 1
+                else:
+                    sent_fail += 1
+                await asyncio.sleep(_SEND_DELAY)
+
+            # 4. DM obunachilariga
             subs = await sub_repo.list_by_region(region_id, daily_post=True)
             for sub in subs:
                 user = sub.user

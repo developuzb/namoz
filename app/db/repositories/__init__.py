@@ -5,6 +5,7 @@ from app.db.repositories.masjid_time_repo import MasjidTimeRepository
 from app.db.repositories.post_log_repo import PostLogRepository
 from app.db.repositories.region_repo import RegionRepository
 from app.db.repositories.stats_repo import StatsRepository
+from app.db.repositories.subscribed_chat_repo import SubscribedChatRepository
 from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 
@@ -15,6 +16,7 @@ __all__ = [
     "PostLogRepository",
     "RegionRepository",
     "StatsRepository",
+    "SubscribedChatRepository",
     "SubscriptionRepository",
     "UserRepository",
 ]
