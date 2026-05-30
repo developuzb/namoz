@@ -19,18 +19,14 @@ from app.bot.filters import AdminFilter
 from app.bot.keyboards import (
     admin_panel_keyboard,
     mt_cancel_keyboard,
-    mt_flat_picker,
     mt_prayer_picker,
-    mt_tuman_picker,
     mt_viloyat_picker,
 )
 from app.bot.keyboards.callback_data import (
     CB_ADMIN_MASJID,
-    CB_ADMIN_ROOT,
     CB_MT_BACK_VIL,
     CB_MT_CANCEL,
     CB_MT_PRAYER,
-    CB_MT_TUMAN,
     CB_MT_VILOYAT,
 )
 from app.bot.states.admin import MasjidTimeFSM
@@ -107,25 +103,22 @@ async def show_regions(
 @router.callback_query(
     StateFilter(MasjidTimeFSM.choosing_region), F.data.startswith(f"{CB_MT_VILOYAT}:")
 )
-async def pick_viloyat(call: CallbackQuery, session: AsyncSession) -> None:
+async def pick_viloyat(
+    call: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    """Viloyat tanlangach — to'g'ridan-to'g'ri 5 farz pickerga.
+
+    Jamoat vaqtlari viloyat darajasida bitta to'plam (parent), shuning uchun
+    tumanlar oraliq qadami yo'q. Hech qachon tumanlar ro'yxati ko'rsatilmaydi.
+    """
     try:
         viloyat_id = int(call.data.split(":", 1)[1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
 
-    rr = RegionRepository(session)
-    children = await rr.list_children(viloyat_id)
-    viloyat = await rr.get(viloyat_id)
-
-    if not children:
-        # Flat — to'g'ridan-to'g'ri prayer picker'ga
-        await _show_prayers_for_region(call, session, region_id=viloyat_id)
-        return
-
-    text = f"📍 <b>{escape_html(viloyat.name)}</b>\nTumanni tanlang:"
-    await call.message.edit_text(text, reply_markup=mt_tuman_picker(children))
-    await call.answer()
+    await _show_prayers_for_region(call, session, region_id=viloyat_id)
+    await state.set_state(MasjidTimeFSM.choosing_prayer)
 
 
 @router.callback_query(
@@ -137,20 +130,7 @@ async def back_to_viloyats(
     await _show_region_picker(call, session)
 
 
-# =================== Tuman / flat → 5 farz ===================
-
-@router.callback_query(F.data.startswith(f"{CB_MT_TUMAN}:"))
-async def pick_tuman(
-    call: CallbackQuery, session: AsyncSession, state: FSMContext
-) -> None:
-    try:
-        region_id = int(call.data.split(":", 1)[1])
-    except (ValueError, IndexError):
-        await call.answer("Noto'g'ri", show_alert=True)
-        return
-    await _show_prayers_for_region(call, session, region_id=region_id)
-    await state.set_state(MasjidTimeFSM.choosing_prayer)
-
+# =================== 5 farz ro'yxati ===================
 
 async def _show_prayers_for_region(
     call: CallbackQuery, session: AsyncSession, *, region_id: int

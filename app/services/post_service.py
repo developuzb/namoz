@@ -17,7 +17,6 @@ from app.services.caption_builder import build_post_caption
 from app.services.hijri_service import gregorian_to_hijri_uz
 from app.services.image_builder import make_prayer_image
 from app.services.prayer_provider import PrayerService
-from app.services.time_calculator import calculate_nafl_windows
 from app.utils.text_utils import format_milodiy_uz
 from app.utils.time_utils import parse_hhmm_to_dt
 
@@ -38,9 +37,9 @@ def _find_next_farz(
 
 
 _ATTRIBUTION = {
-    "islomapi": "Vaqtlar O'zbekiston musulmonlari idorasi uslubida.",
-    "praytime": "Vaqtlar praytime.uz manbasidan.",
-    "aladhan":  "Vaqtlar Aladhan API (ISNA / Hanafi) bo'yicha hisoblangan.",
+    "islomapi": "Hanafiy mazhabi uslubida",
+    "praytime": "Hanafiy mazhabi uslubida",
+    "aladhan":  "Hanafiy mazhabi (ISNA) uslubida",
 }
 
 
@@ -90,16 +89,14 @@ class PostService:
 
         mr = MasjidTimeRepository(session)
         rr = RegionRepository(session)
-        masjid_times = await mr.get_for_region(region.id)
         viloyat = await rr.get(region.parent_id) if region.parent_id else None
         parent_name = (viloyat.name if viloyat else "").replace(" viloyati", "")
 
-        nafl = calculate_nafl_windows(
-            region_times=pt.times,
-            masjid_times=masjid_times,
-            target_date=target_date,
-            tz=tz,
-        )
+        # Jamoat vaqtlari: avval tuman'ning o'zida, yo'q bo'lsa viloyat parent'da.
+        # Viloyat darajasida bitta to'plam — adminlar bir joyda boshqaradi.
+        masjid_times = await mr.get_for_region(region.id)
+        if not masjid_times and viloyat is not None:
+            masjid_times = await mr.get_for_region(viloyat.id)
 
         hijriy = gregorian_to_hijri_uz(target_date)
         milodiy = format_milodiy_uz(
@@ -122,7 +119,6 @@ class PostService:
             region_name=region.name,
             target_date=target_date,
             hijriy=hijriy,
-            nafl_windows=nafl,
             region_times=pt.times,
             masjid_times=masjid_times,
             channel_link=channel_link,

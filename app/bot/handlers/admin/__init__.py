@@ -9,6 +9,7 @@ from app.bot.handlers.admin.masjid_times import router as masjid_times_router
 from app.bot.handlers.admin.panel import router as panel_router
 from app.bot.handlers.admin.regions import router as regions_router
 from app.bot.handlers.admin.stats import router as stats_router
+from app.bot.handlers.admin.test_namoz import router as test_namoz_router
 from app.bot.handlers.admin.test_post import router as test_post_router
 from app.bot.handlers.admin.users import router as users_router
 
@@ -16,6 +17,7 @@ router = Router(name="admin")
 router.include_router(panel_router)
 router.include_router(stats_router)
 router.include_router(test_post_router)
+router.include_router(test_namoz_router)
 router.include_router(health_router)
 router.include_router(audit_router)
 router.include_router(channels_router)

@@ -70,6 +70,23 @@ def parse_hhmm_to_dt(
     return tz.localize(naive)
 
 
+def subtract_minutes(hhmm: str | None, minutes: int) -> str | None:
+    """`HH:MM` dan `minutes` daqiqa ayiradi (kun chegarasi bilan ishlaydi).
+
+    Misollar:
+        ("04:01", 3)  -> "03:58"
+        ("00:02", 5)  -> "23:57"   (bir kun orqaga)
+        (None, 3)     -> None
+    """
+    cleaned = clean_hhmm(hhmm)
+    if cleaned is None:
+        return None
+    h, m = map(int, cleaned.split(":"))
+    total = h * 60 + m - minutes
+    total %= 24 * 60
+    return f"{total // 60:02d}:{total % 60:02d}"
+
+
 def format_eta(minutes: int) -> str:
     """
     Qolgan daqiqalarni o'qishga qulay matnga o'tkazish.

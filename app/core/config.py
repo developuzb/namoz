@@ -58,16 +58,25 @@ class Settings(BaseSettings):
     #: aiohttp web server porti (lokal)
     WEBAPP_PORT: int = Field(default=8080, ge=1, le=65535)
 
+    # ---------------- Qashqadaryo kunlik plakat ----------------
+    #: Plakat avtomatik yuboriladigan chat (kanal/guruh) ID.
+    #: 0 — o'chiq (scheduler yubormaydi, faqat /test_namoz ishlaydi).
+    NAMOZ_CHAT_ID: int = Field(default=0, description="Qashqadaryo plakat chat ID")
+    #: Plakat yuborish vaqti (HH:MM)
+    NAMOZ_SEND_TIME: str = Field(default="04:00")
+    #: Plakat uchun timezone (default — TIMEZONE ga teng)
+    NAMOZ_TIMEZONE: str = Field(default="Asia/Tashkent")
+
     # =================== Validators ===================
 
-    @field_validator("DAILY_POST_TIME")
+    @field_validator("DAILY_POST_TIME", "NAMOZ_SEND_TIME")
     @classmethod
     def _validate_time(cls, v: str) -> str:
         try:
             hh, mm = map(int, v.split(":"))
             assert 0 <= hh <= 23 and 0 <= mm <= 59
         except (ValueError, AssertionError) as e:
-            raise ValueError(f"DAILY_POST_TIME noto'g'ri formatda: {v}. Kutilgan: HH:MM") from e
+            raise ValueError(f"Vaqt formati noto'g'ri: {v}. Kutilgan: HH:MM") from e
         return v
 
     @field_validator("LOG_LEVEL")
@@ -94,6 +103,19 @@ class Settings(BaseSettings):
     @property
     def post_minute(self) -> int:
         return int(self.DAILY_POST_TIME.split(":")[1])
+
+    @property
+    def namoz_hour(self) -> int:
+        return int(self.NAMOZ_SEND_TIME.split(":")[0])
+
+    @property
+    def namoz_minute(self) -> int:
+        return int(self.NAMOZ_SEND_TIME.split(":")[1])
+
+    @property
+    def namoz_chat_id(self) -> int | None:
+        """0 — o'chiq."""
+        return self.NAMOZ_CHAT_ID or None
 
     @property
     def base_dir(self) -> Path:

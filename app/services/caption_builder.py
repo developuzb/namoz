@@ -3,12 +3,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from app.core.constants import (
-    NAFL_GUIDE_URL,
-    NAFL_ICONS,
-    NAFL_PRAYERS,
-)
-from app.core.content import get_daily_ayah, get_daily_dua, get_daily_hadith
+from app.core.content import get_daily_ayah
 from app.services.holidays import get_holiday, get_ramadan_day
 from app.utils.text_utils import (
     escape_html,
@@ -25,23 +20,18 @@ def build_post_caption(
     region_name: str,
     target_date: date,
     hijriy: str,
-    nafl_windows: dict[str, str],
     region_times: dict[str, str],
     masjid_times: dict[str, str],
     channel_link: str | None = None,
     attribution: str | None = None,
 ) -> str:
-    """
-    Kunlik post ning HTML caption ini yasaydi.
+    """Kunlik post HTML caption ini yasaydi.
 
-    Bo'limlar tartibi:
-      1. Sarlavha (viloyat / tuman + sana + hafta kuni + hijriy)
-      2. Nafl vaqtlari (Tahajjud, Ishroq, Zuho, Avvobiyn)
+    Tartib (yuqoridan pastga):
+      1. Kanal havolasi (bo'lsa) + region + sana + hijriy — barchasi yuqorida
+      2. Ramazon / hijriy bayram / Juma tabriklari (agar bo'lsa)
       3. Saharlik / Iftorlik
-      4. Idora attribyutsiyasi
-      5. Qur'on oyati (Niso 4:103)
-      6. Nafl batafsil havolasi
-      7. Kanal havolasi (bo'lsa)
+      4. Qur'on oyati
     """
     dt = datetime(target_date.year, target_date.month, target_date.day)
     milodiy = format_milodiy_uz(dt)
@@ -53,27 +43,29 @@ def build_post_caption(
 
     lines: list[str] = []
 
-    # ========== 1. Sarlavha ==========
+    # ========== 1. Yuqori meta blok ==========
+    link = normalize_channel_link(channel_link)
+    if link:
+        lines.append(f"🔗 {link}")
+
     if parent_safe and parent_safe != region_safe:
-        lines.append(f"<b>{parent_safe} / {region_safe}</b>")
+        lines.append(f"📍 <b>{parent_safe} / {region_safe}</b>")
     else:
-        lines.append(f"<b>{region_safe}</b>")
-    lines.append(f"<b>{milodiy} ({hafta}) — {hijriy_safe}</b>")
+        lines.append(f"📍 <b>{region_safe}</b>")
+    lines.append(f"🗓 <b>{milodiy} ({hafta})</b>")
+    lines.append(f"🕌 <i>{hijriy_safe}</i>")
 
     # Ramazon kuni badge
     ramadan_day = get_ramadan_day(target_date)
     if ramadan_day:
         lines.append(f"🌙 <b>RAMAZON — {ramadan_day}-kun</b>")
 
-    lines.append(f"📅 <i>Namoz vaqtlari: {milodiy} ({hafta}) kuni uchun</i>")
-
-    # Hijriy bayram tabrigi (Mavlud, Hayit, Lailatul Qadr, Arafa, Ashura, ...)
+    # ========== 2. Hijriy bayram / Juma tabriklari ==========
     holiday = get_holiday(target_date)
     if holiday:
         lines.append("")
         lines.append(holiday.greeting)
 
-    # Juma kuni alohida tabrik (weekday() == 4 = Juma) — bayram bilan birga ham OK
     if target_date.weekday() == 4 and (not holiday or holiday.key != "eid_al_fitr"):
         lines.append("")
         lines.append("🕌 <b>Bugun — muborak Juma kuni!</b>")
@@ -84,36 +76,22 @@ def build_post_caption(
             "🤲 <i>Sadaqa qilish, surai Kahf o'qish va salavot aytishni unutmang.</i>"
         )
 
-    lines.append("")
-
-    # ========== 2. Nafl vaqtlari ==========
-    for prayer in NAFL_PRAYERS:
-        window = nafl_windows.get(prayer)
-        if not window:
-            continue
-        icon = NAFL_ICONS.get(prayer, "")
-        lines.append(f"{icon} <b>{prayer}:</b> <code>{escape_html(window)}</code>")
-
     # ========== 3. Saharlik / Iftorlik ==========
+    # Saharlik = Bomdod (Fajr) vaqti — islomapi tong_saharlik bilan bir xil.
+    # Iftorlik = Shom (Mag'rib) vaqti.
     saharlik = (
         clean_hhmm(region_times.get("Bomdod"))
-        or clean_hhmm(masjid_times.get("Bomdod"))
         or "—"
     )
     iftorlik = (
         clean_hhmm(region_times.get("Shom"))
-        or clean_hhmm(masjid_times.get("Shom"))
         or "—"
     )
     lines.append("")
-    lines.append(
-        f"🍽 <b>Saharlik:</b> <code>{saharlik}</code>  |  "
-        f"<b>Iftorlik:</b> <code>{iftorlik}</code>"
-    )
-    if attribution:
-        lines.append(f"📚 <i>{escape_html(attribution)}</i>")
+    lines.append(f"🌙 <b>Saharlik:</b> <code>{saharlik}</code>")
+    lines.append(f"🌇 <b>Iftorlik:</b> <code>{iftorlik}</code>")
 
-    # ========== 4. Qur'on oyati (har kuni boshqacha) ==========
+    # ========== 4. Qur'on oyati ==========
     day_ord = target_date.toordinal()
     ayah = get_daily_ayah(day_ord)
     lines.append("")
@@ -121,34 +99,9 @@ def build_post_caption(
     lines.append(f"{ayah.arabic}")
     lines.append(f"<i>— {escape_html(ayah.ref)}</i>")
 
-    # ========== 5. Kunning duosi yoki hadisi (caption length cheklov) ==========
-    if day_ord % 2 == 0:
-        # Juft kun — dua
-        dua = get_daily_dua(day_ord // 2)
-        lines.append("")
-        lines.append("🤲 <b>Kunning duosi:</b>")
-        lines.append(f"{dua.arabic}")
-        lines.append(f"<i>{escape_html(dua.uzbek)}</i>")
-    else:
-        # Toq kun — hadis
-        hadith = get_daily_hadith(day_ord // 2)
-        lines.append("")
-        lines.append("📜 <b>Kunning hadisi:</b>")
-        lines.append(f"<i>{escape_html(hadith.text_uz)}</i>")
-        lines.append(f"— <i>{escape_html(hadith.source)}</i>")
-
-    # ========== 6. Nafl batafsil ==========
-    lines.append("")
-    lines.append(
-        f'🧭 <a href="{NAFL_GUIDE_URL}">Nafl nima? Qanday o\'qiladi (batafsil)</a>'
-    )
-
-    # ========== 7. Kanal havolasi ==========
-    link = normalize_channel_link(channel_link)
-    if link:
-        lines.append("")
-        lines.append(f"🔗 {link}")
-
+    # `attribution` argumenti endi ishlatilmaydi (manba/uslub olib tashlandi),
+    # lekin imzosini saqlaymiz — eski kod chaqiruvlari sinmasin.
+    _ = attribution
     return "\n".join(lines)
 
 
