@@ -168,14 +168,64 @@ def mt_cancel_keyboard() -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
-    """Broadcast yuborishni tasdiqlash."""
-    from app.bot.keyboards.callback_data import CB_BC_CANCEL, CB_BC_CONFIRM
+def broadcast_target_keyboard() -> InlineKeyboardMarkup:
+    """Broadcast nishonini tanlash (Kanallar yoki Userlar)."""
+    from app.bot.keyboards.callback_data import CB_ADMIN_ROOT, CB_BC_TARGET
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Hammaga yuborish", callback_data=CB_BC_CONFIRM)
-    kb.button(text="❌ Bekor qilish", callback_data=CB_BC_CANCEL)
+    kb.button(text="📢 Kanallarga yuborish", callback_data=f"{CB_BC_TARGET}:channels")
+    kb.button(text="👥 Userlarga yuborish", callback_data=f"{CB_BC_TARGET}:users")
+    kb.button(text="« Admin paneli", callback_data=CB_ADMIN_ROOT)
     kb.adjust(1)
+    return kb.as_markup()
+
+
+def broadcast_preview_keyboard(
+    *,
+    target: str,
+    auto_link: bool,
+    sub_button: bool,
+    custom_template: bool,
+) -> InlineKeyboardMarkup:
+    """Broadcast interaktiv sozlamalari va tasdiqlash keyboardi."""
+    from app.bot.keyboards.callback_data import (
+        CB_BC_CANCEL,
+        CB_BC_CONFIRM,
+        CB_BC_TOGGLE,
+    )
+
+    kb = InlineKeyboardBuilder()
+    target_label = "📢 Kanallar" if target == "channels" else "👥 Userlar"
+    kb.button(text=f"🎯 Nishon: {target_label}", callback_data=f"{CB_BC_TOGGLE}:target")
+
+    mark = lambda val: "✅ ON" if val else "❌ OFF"
+
+    if target == "channels":
+        kb.button(
+            text=f"📌 Auto-caption (Link): {mark(auto_link)}",
+            callback_data=f"{CB_BC_TOGGLE}:auto_link",
+        )
+        kb.button(
+            text=f"🔘 Obuna tugmasi: {mark(sub_button)}",
+            callback_data=f"{CB_BC_TOGGLE}:sub_button",
+        )
+        kb.button(
+            text=f"📝 Custom shablon: {mark(custom_template)}",
+            callback_data=f"{CB_BC_TOGGLE}:custom_template",
+        )
+    else:
+        kb.button(
+            text=f"🔘 Obuna tugmasi: {mark(sub_button)}",
+            callback_data=f"{CB_BC_TOGGLE}:sub_button",
+        )
+
+    kb.button(text="🚀 Yuborishni boshlash", callback_data=CB_BC_CONFIRM)
+    kb.button(text="❌ Bekor qilish", callback_data=CB_BC_CANCEL)
+
+    if target == "channels":
+        kb.adjust(1, 1, 1, 1, 1, 1)
+    else:
+        kb.adjust(1, 1, 1, 1)
     return kb.as_markup()
 
 
@@ -184,6 +234,8 @@ __all__ = [
     "admin_tuman_picker",
     "admin_viloyat_picker",
     "broadcast_confirm_keyboard",
+    "broadcast_preview_keyboard",
+    "broadcast_target_keyboard",
     "channel_delete_confirm_keyboard",
     "channel_detail_keyboard",
     "channels_list_keyboard",
@@ -193,3 +245,4 @@ __all__ = [
     "mt_tuman_picker",
     "mt_viloyat_picker",
 ]
+

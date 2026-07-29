@@ -85,5 +85,8 @@ CB_MT_BACK_PRAYERS = "mt_back_pray"  # bitta region detail'ga qaytish
 CB_MT_CANCEL = "mt:cancel"
 
 # ---------- Admin: Broadcast ----------
+CB_BC_TARGET = "bc:target"           # bc:target:<channels|users>
+CB_BC_TOGGLE = "bc:toggle"           # bc:toggle:<option_name>
 CB_BC_CONFIRM = "bc:send"
 CB_BC_CANCEL = "bc:cancel"
+
