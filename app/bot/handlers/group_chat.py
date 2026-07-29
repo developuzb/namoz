@@ -248,6 +248,7 @@ async def group_today(message: Message, session: AsyncSession) -> None:
             session=session, region=sub.region, target_date=date.today(),
         )
     except Exception as e:  # noqa: BLE001
+        logger.exception("Group post bundle fail chat={}: {}", message.chat.id, e)
         await notice.edit_text(f"❌ Xato: <code>{e}</code>")
         return
 

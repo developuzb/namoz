@@ -67,6 +67,17 @@ class Settings(BaseSettings):
     #: Plakat uchun timezone (default — TIMEZONE ga teng)
     NAMOZ_TIMEZONE: str = Field(default="Asia/Tashkent")
 
+    # ---------------- Google Sheets sync ----------------
+    #: Sheet ID (URL dagi /d/<ID>/ qismi). Bo'sh bo'lsa — bot o'zi yaratadi
+    #: (data/sheet_id.txt ga saqlanadi).
+    GOOGLE_SHEET_ID: str = Field(default="", description="Google Sheet ID")
+    #: Service account JSON fayl yo'li (base_dir ga nisbatan yoki absolut)
+    GOOGLE_SA_JSON: str = Field(default="data/google_sa.json")
+    #: Bot o'zi sheet yaratganda shu emailga Editor huquqi beriladi
+    GOOGLE_SHEET_OWNER_EMAIL: str = Field(default="", description="Sheet egasi email")
+    #: Necha daqiqada bir sync qilinadi
+    SHEETS_SYNC_INTERVAL_MIN: int = Field(default=60, ge=5, le=1440)
+
     # =================== Validators ===================
 
     @field_validator("DAILY_POST_TIME", "NAMOZ_SEND_TIME")
@@ -142,6 +153,22 @@ class Settings(BaseSettings):
     @property
     def static_dir(self) -> Path:
         return BASE_DIR / "static"
+
+    @property
+    def google_sa_path(self) -> Path:
+        """Service account JSON absolut yo'li."""
+        p = Path(self.GOOGLE_SA_JSON)
+        return p if p.is_absolute() else BASE_DIR / p
+
+    @property
+    def sheet_id_file(self) -> Path:
+        """Bot o'zi yaratgan sheet ID sini saqlaydigan fayl."""
+        return self.data_dir / "sheet_id.txt"
+
+    @property
+    def sheets_configured(self) -> bool:
+        """Sheets sync ishlashi uchun minimal shart — SA kalit fayli mavjud."""
+        return self.google_sa_path.exists()
 
 
 # Global singleton — bir marta yuklanadi

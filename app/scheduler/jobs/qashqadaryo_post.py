@@ -10,17 +10,10 @@ Ham scheduler ham `/test_namoz` handler tomonidan chaqiriladi.
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import date
 from pathlib import Path
 
 from aiogram import Bot
-from aiogram.exceptions import (
-    TelegramBadRequest,
-    TelegramForbiddenError,
-    TelegramRetryAfter,
-)
-from aiogram.types import FSInputFile
 
 from app.core.config import get_settings
 from app.core.constants import FARZ_PRAYERS
@@ -35,6 +28,7 @@ from app.services.qashqadaryo_table import (
     render_qashqadaryo_table,
 )
 from app.services.registry import get_prayer_service
+from app.services.telegram_send import send_document_safe, send_photo_safe
 
 #: Viloyat (parent) slug — seed migratsiyasidan
 PARENT_SLUG = "qashqadaryo"
@@ -168,25 +162,28 @@ def _calc_sahar_iftor(
     masjid_times: dict[str, str] | None,
     regions_data: dict[str, dict[str, str]] | None,
 ) -> tuple[str, str]:
-    """Umumiy saharlik (Bomdod) va iftorlik (Shom) qaytaradi."""
-    if masjid_times:
-        s = masjid_times.get("Bomdod", "")
-        i = masjid_times.get("Shom", "")
-        if s and i:
-            return s, i
+    """Umumiy saharlik (Bomdod/tong) va iftorlik (Shom) qaytaradi.
+
+    MUHIM: faqat taqvim (regions_data) dan hisoblanadi. Masjid jamoat
+    vaqtlari ishlatilmaydi — jamoat Bomdodi saharlik tugashidan ancha
+    keyin (quyoshga yaqin) o'qiladi, uni "Saharlik" deb ko'rsatish xato.
+    """
+    _ = masjid_times  # jamoat vaqtlari saharlik/iftorlik uchun ishlatilmaydi
 
     if regions_data:
         def _avg(key: str) -> str:
-            vals = [v[key] for v in regions_data.values() if v.get(key)]
-            if not vals:
-                return ""
-            total = 0
-            for t in vals:
+            minutes: list[int] = []
+            for v in regions_data.values():
+                t = v.get(key)
+                if not t:
+                    continue
                 try:
-                    total += int(t[:2]) * 60 + int(t[3:5])
+                    minutes.append(int(t[:2]) * 60 + int(t[3:5]))
                 except (ValueError, IndexError):
                     pass
-            avg = total // len(vals)
+            if not minutes:
+                return ""
+            avg = sum(minutes) // len(minutes)
             return f"{avg // 60:02d}:{avg % 60:02d}"
         return _avg("Bomdod"), _avg("Shom")
 
@@ -209,7 +206,8 @@ def default_caption(
     hafta = weekday_uz(dt)
     try:
         hijriy = gregorian_to_hijri_uz(target_date)
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Hijriy sana hisoblanmadi ({}): {}", target_date, e)
         hijriy = ""
 
     lines = [
@@ -343,63 +341,35 @@ async def _send_photo_safe(
     caption: str,
     post_type: str,
 ) -> bool:
-    """Photo + HD document ketma-ket yuboradi, xatolarni post_logs ga yozadi."""
-    from pathlib import Path as _Path
-    filename = _Path(image_path).name
+    """Photo + HD document ketma-ket yuboradi, xatolarni post_logs ga yozadi.
+
+    Yuborish mantiqi umumiy `app.services.telegram_send` modulida.
+    """
+    filename = Path(image_path).name
 
     async with get_session() as session:
-        log_repo = PostLogRepository(session)
+        msg = await send_photo_safe(
+            bot=bot,
+            chat_id=chat_id,
+            image_path=image_path,
+            caption=caption,
+            log_repo=PostLogRepository(session),
+            post_type=post_type,
+            region_id=None,
+        )
 
-        for attempt in range(2):
-            try:
-                # 1) Siqilgan preview (photo)
-                msg = await bot.send_photo(
-                    chat_id=chat_id,
-                    photo=FSInputFile(image_path),
-                    caption=caption,
-                )
-            except TelegramRetryAfter as e:
-                if attempt == 0:
-                    logger.warning("Rate limit chat_id={}, kutamiz {}s", chat_id, e.retry_after)
-                    await asyncio.sleep(e.retry_after + 1)
-                    continue
-                await log_repo.log(
-                    region_id=None, chat_id=chat_id, post_type=post_type,
-                    status="error", error=f"retry_after exhausted: {e}",
-                )
-                return False
-            except TelegramForbiddenError as e:
-                await log_repo.log(
-                    region_id=None, chat_id=chat_id, post_type=post_type,
-                    status="blocked", error=str(e),
-                )
-                logger.error("Bot Qashqadaryo chatdan bloklangan: {}", chat_id)
-                return False
-            except (TelegramBadRequest, Exception) as e:
-                await log_repo.log(
-                    region_id=None, chat_id=chat_id, post_type=post_type,
-                    status="error", error=str(e),
-                )
-                logger.error("Qashqadaryo send fail chat_id={}: {}", chat_id, e)
-                return False
+    if msg is None:
+        return False
 
-            await log_repo.log(
-                region_id=None, chat_id=chat_id, post_type=post_type,
-                status="ok", message_id=msg.message_id,
-            )
-
-            # 2) HD original fayl (document) — siqishsiz, to'liq caption bilan
-            try:
-                await bot.send_document(
-                    chat_id=chat_id,
-                    document=FSInputFile(image_path, filename=f"HD_{filename}"),
-                    caption=caption,
-                )
-            except Exception as e:
-                logger.warning("HD document yuborilmadi chat_id={}: {}", chat_id, e)
-
-            return True
-    return False
+    # HD original fayl (document) — siqishsiz, retry bilan
+    await send_document_safe(
+        bot=bot,
+        chat_id=chat_id,
+        file_path=image_path,
+        caption=caption,
+        filename=f"HD_{filename}",
+    )
+    return True
 
 
 __all__ = [

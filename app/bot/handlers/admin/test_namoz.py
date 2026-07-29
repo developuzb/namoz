@@ -38,9 +38,13 @@ router.message.filter(AdminFilter())
 #: Tasdiqlash so'zlari (case-insensitive)
 _OK_WORDS: set[str] = {"ok", "ok!", "okey", "okay", "ха", "ҳа", "ha", "+", "tasdiq"}
 
-#: Preview cache — kalit (chat_id, message_id), qiymat: (image_path, target_date, ts)
+#: Preview cache — kalit (chat_id, message_id),
+#: qiymat: (image_path, target_date, ts, masjid_times, regions_data)
 #: TTL: 30 daqiqa. Kichik holat, in-memory yetadi.
-_PREVIEW_CACHE: dict[tuple[int, int], tuple[Path, date, float]] = {}
+_PREVIEW_CACHE: dict[
+    tuple[int, int],
+    tuple[Path, date, float, dict[str, str], dict[str, dict[str, str]]],
+] = {}
 _TTL_SECONDS = 30 * 60
 
 
@@ -141,8 +145,25 @@ async def on_preview_reply(message: Message, user: User) -> None:
         )
         return
 
-    # OK keldi — kanalga yuboramiz
-    image_path, target_date, _ts, masjid, regions_data = _PREVIEW_CACHE.pop(key)
+    # OK keldi — avval cache'dan xavfsiz olamiz (parallel reply'lardan himoya)
+    entry = _PREVIEW_CACHE.pop(key, None)
+    if entry is None:
+        await message.reply(
+            "ℹ️ Bu preview allaqachon yuborilgan yoki bekor qilingan.",
+        )
+        return
+
+    image_path, target_date, ts, masjid, regions_data = entry
+
+    # TTL tekshiruvi — eskirgan preview kanalga chiqmasin
+    if time.time() - ts > _TTL_SECONDS:
+        await message.reply(
+            "⌛ <b>Muddat tugagan</b>\n\n"
+            f"Preview {_TTL_SECONDS // 60} daqiqadan eski. "
+            "Yangi preview uchun /test_namoz ni qayta yuboring.",
+        )
+        return
+
     settings = get_settings()
     chat_id = settings.namoz_chat_id
     if not chat_id:

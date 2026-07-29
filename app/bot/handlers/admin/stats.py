@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.filters import AdminFilter
 from app.bot.keyboards.callback_data import CB_ADMIN_STATS
+from app.core.logger import logger
 from app.db.models.channel import Channel
 from app.db.models.subscription import Subscription
 from app.db.models.user import User
@@ -149,6 +150,7 @@ async def cmd_charts(message: Message, session: AsyncSession) -> None:
         growth_png = await render_growth_chart(session, days=30)
         status_png = await render_post_status_chart(session, hours=24)
     except Exception as e:  # noqa: BLE001
+        logger.exception("Stats grafiklari yasalmadi: {}", e)
         await message.answer(f"❌ Grafiklar yasalmadi: <code>{e}</code>")
         return
 

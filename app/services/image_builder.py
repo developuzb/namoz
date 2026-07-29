@@ -1,24 +1,23 @@
-"""Namoz vaqtlari rasmini yasaydi (Pillow) — v5: Islamic premium.
+"""Namoz vaqtlari rasmini yasaydi (Pillow) — v7: To'q iOS islomiy.
 
-Yangi konsepsiya:
-- Real fotograf hissi: sunset osmon gradient + yulduzlar + yarim oy + masjid silueti
-- Hero card (KEYINGI namoz uchun katta) + 5 kichik kart pastda
-- Glass-morphism cardlar (semi-transparent + blur)
-- Klassik Islamic ornamentlar (oltin chiziqcha, yulduzli pattern)
-- 3D emoji'lar saqlanadi (Microsoft Fluent UI)
+Qashqadaryo plakati bilan bir xil palitra (uyg'un brending):
+- Chuqur yashil-charcoal gradient fon + yumshoq nur (glow)
+- Hero card (KEYINGI namoz) — vibrant aksent gradient, katta oq raqam
+- 2x3 grid: 6 namoz to'q surface kartlarda, oltin/aksent matn
+- Oltin sarlavha, kaaba/pin ikon, iOS pill ko'rinishidagi sana
+- Microsoft Fluent 3D emoji'lar
 """
 from __future__ import annotations
 
-import math
-import random
 import re
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.core.config import get_settings
 from app.core.constants import ALL_PRAYERS, FARZ_PRAYERS
 from app.core.logger import logger
+from app.services.backdrop import aqsa_backdrop
 from app.utils.time_utils import clean_hhmm
 
 DEFAULT_SIZE: tuple[int, int] = (1080, 1080)
@@ -43,47 +42,36 @@ EMOJI_FILES: dict[str, str] = {
 
 EMPTY_MARK = "—"
 
-# ============== Sunset osmon palette (4-stop) ==============
-COLOR_SKY_TOP = (38, 48, 95)         # navy yuqori
-COLOR_SKY_HIGH = (78, 56, 122)       # binafsha
-COLOR_SKY_MID = (210, 95, 110)       # qizg'ish-pushti
-COLOR_SKY_LOW = (244, 156, 102)      # to'q sariq
-COLOR_SKY_BOTTOM = (15, 25, 60)      # to'q ko'k (silhouette ostida)
+# ============== To'q iOS islomiy palette (Qashqadaryo bilan bir xil) ==========
+COLOR_BG_TOP   = (13, 28, 23)         # chuqur yashil-charcoal
+COLOR_BG_BOT   = (7, 15, 12)
+COLOR_GLOW     = (42, 96, 66)         # header ortidagi yumshoq nur
 
-COLOR_SILHOUETTE = (5, 8, 25)        # qora-ko'k masjid silueti
-COLOR_STAR = (255, 250, 230)
-COLOR_MOON = (255, 240, 200)
+COLOR_GOLD     = (214, 176, 98)
+COLOR_GOLD_DK  = (168, 132, 64)
+COLOR_WHITE    = (244, 247, 245)
+COLOR_DIM      = (150, 166, 158)
 
-# Glass card
-COLOR_GLASS_OVERLAY = (255, 255, 255, 165)  # oq, yarim shaffof
-COLOR_GLASS_HIGHLIGHT = (255, 252, 240, 215)  # KEYINGI uchun ozroq qoyuq
+COLOR_SURFACE  = (26, 40, 34)         # to'q kart yuzasi
+COLOR_BORDER   = (255, 255, 255, 30)  # nozik hairline ramka
 
-# Per-prayer accent
+# Per-prayer accent (iOS, kun davriga mos)
 COLOR_ACCENT: dict[str, tuple[int, int, int]] = {
-    "Bomdod":  (255, 121, 84),
-    "Quyosh":  (255, 167, 38),
-    "Peshin":  (38, 198, 218),
-    "Asr":     (255, 152, 0),
-    "Shom":    (244, 81, 108),
-    "Xufton":  (126, 87, 194),
+    "Bomdod":  (96, 170, 255),
+    "Quyosh":  (255, 201, 102),
+    "Peshin":  (255, 128, 99),
+    "Asr":     (255, 168, 82),
+    "Shom":    (236, 124, 162),
+    "Xufton":  (146, 138, 238),
 }
-
-# Text on glass (light bg) — to'q
-COLOR_TEXT_NAME = (60, 50, 80)
-COLOR_TEXT_TIME = (20, 20, 40)
-COLOR_TEXT_JAMOAT = (70, 90, 70)
-COLOR_DIVIDER = (200, 200, 200)
-
-# Header / footer (oq matn osmonda)
-COLOR_HEADER_TEXT = (255, 250, 240)
-COLOR_HEADER_DIM = (220, 215, 230)
-COLOR_HEADER_LINE = (255, 220, 180, 180)
-COLOR_HEADER_DOT = (255, 200, 130)
-
-# Highlighted gold
-COLOR_GOLD = (218, 165, 32)
-COLOR_GOLD_GLOW_OUT = (255, 215, 130)
-COLOR_GOLD_GLOW_IN = (255, 230, 170)
+COLOR_ACCENT_DARK: dict[str, tuple[int, int, int]] = {
+    "Bomdod":  (52, 110, 188),
+    "Quyosh":  (210, 150, 50),
+    "Peshin":  (196, 78, 58),
+    "Asr":     (204, 116, 40),
+    "Shom":    (178, 72, 112),
+    "Xufton":  (96, 86, 188),
+}
 
 
 def _safe_filename(name: str) -> str:
@@ -134,196 +122,95 @@ def _apply_fallback(home: dict[str, str], mosq: dict[str, str]) -> None:
             home[prayer] = mosq[prayer]
 
 
-# ============== BG: sunset gradient + stars + moon + silhouette ==============
+def _next_prayer(home: dict[str, str], highlight: str | None) -> str:
+    if highlight and highlight in home:
+        return highlight
+    for p in FARZ_PRAYERS:
+        if home.get(p):
+            return p
+    return "Bomdod"
 
-def _make_sky_gradient(W: int, H: int) -> Image.Image:
-    """4-stop sunset gradient — yulduzlar va silhouette uchun fon."""
-    stops = [
-        (0.00, COLOR_SKY_TOP),
-        (0.30, COLOR_SKY_HIGH),
-        (0.55, COLOR_SKY_MID),
-        (0.78, COLOR_SKY_LOW),
-        (1.00, COLOR_SKY_BOTTOM),
-    ]
+
+# ============== Background ==============
+
+def _make_bg(W: int, H: int) -> Image.Image:
+    """To'q yashil-charcoal vertikal gradient + header ortida yumshoq nur."""
     grad = Image.new("RGB", (1, H))
     for y in range(H):
-        ratio = y / max(H - 1, 1)
-        # Topdan past-pastiga yaqin stop'larni topib interpolate
-        for i in range(len(stops) - 1):
-            r1, c1 = stops[i]
-            r2, c2 = stops[i + 1]
-            if r1 <= ratio <= r2:
-                t = (ratio - r1) / max(r2 - r1, 0.0001)
-                r = int(c1[0] + (c2[0] - c1[0]) * t)
-                g = int(c1[1] + (c2[1] - c1[1]) * t)
-                b = int(c1[2] + (c2[2] - c1[2]) * t)
-                grad.putpixel((0, y), (r, g, b))
-                break
-    return grad.resize((W, H))
+        t = y / max(H - 1, 1)
+        grad.putpixel((0, y), (
+            int(COLOR_BG_TOP[0] + (COLOR_BG_BOT[0] - COLOR_BG_TOP[0]) * t),
+            int(COLOR_BG_TOP[1] + (COLOR_BG_BOT[1] - COLOR_BG_TOP[1]) * t),
+            int(COLOR_BG_TOP[2] + (COLOR_BG_BOT[2] - COLOR_BG_TOP[2]) * t),
+        ))
+    img = grad.resize((W, H)).convert("RGBA")
+    glow = _radial_glow(int(W * 0.95), COLOR_GLOW, 105)
+    img.alpha_composite(glow, (W // 2 - glow.size[0] // 2, int(-H * 0.22)))
+    return img
 
 
-def _draw_stars(img: Image.Image, count: int = 90) -> None:
-    """Twinkling yulduzlar — yuqori 50% da."""
-    rng = random.Random(2026)
-    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    W, H = img.size
-    for _ in range(count):
-        x = rng.randint(0, W)
-        y = rng.randint(0, int(H * 0.50))
-        size = rng.choice([1, 1, 2, 2, 2, 3])
-        opacity = rng.randint(120, 240)
-        d.ellipse(
-            (x - size, y - size, x + size, y + size),
-            fill=COLOR_STAR + (opacity,),
-        )
-    img.alpha_composite(layer)
+def _radial_glow(diam: int, color: tuple[int, int, int], max_alpha: int) -> Image.Image:
+    grad = Image.radial_gradient("L").resize((diam, diam))
+    alpha = ImageOps.invert(grad).point(lambda v: int((v / 255) * max_alpha))
+    layer = Image.new("RGBA", (diam, diam), (*color, 0))
+    layer.putalpha(alpha)
+    return layer
 
 
-def _draw_crescent(img: Image.Image, cx: int, cy: int, r: int) -> None:
-    """Yarim oy (crescent moon) — top-right area."""
-    size = r * 2 + 20
-    full_mask = Image.new("L", (size, size), 0)
-    ImageDraw.Draw(full_mask).ellipse((10, 10, size - 10, size - 10), fill=255)
+# ============== Cards ==============
 
-    cut_mask = Image.new("L", (size, size), 0)
-    shift = int(r * 0.42)
-    ImageDraw.Draw(cut_mask).ellipse(
-        (10 + shift, 10, size - 10 + shift, size - 10), fill=255,
-    )
-    crescent_mask = ImageChops.subtract(full_mask, cut_mask)
-
-    # Glow (ortda blur)
-    glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    color_img = Image.new("RGBA", (size, size), COLOR_MOON + (255,))
-    glow.paste(color_img, (0, 0), crescent_mask)
-    glow_blur = glow.filter(ImageFilter.GaussianBlur(8))
-
-    img.alpha_composite(glow_blur, (cx - size // 2, cy - size // 2))
-    img.alpha_composite(glow, (cx - size // 2, cy - size // 2))
-
-
-def _draw_mosque_silhouette(img: Image.Image) -> None:
-    """Pastida masjid silueti — minimalist, simvolik."""
-    W, H = img.size
-    base_y = int(H * 0.93)
-    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    color = COLOR_SILHOUETTE + (255,)
-
-    cx = W // 2
-
-    # Pastki yer chizig'i
-    d.rectangle((0, base_y + 30, W, H), fill=color)
-
-    # Markaziy gumbaz
-    dome_r = int(W * 0.085)
-    d.pieslice(
-        (cx - dome_r, base_y - dome_r * 2, cx + dome_r, base_y),
-        180, 360, fill=color,
-    )
-    # Markaziy bino
-    body_w = int(W * 0.22)
-    body_h = int(W * 0.06)
-    d.rectangle(
-        (cx - body_w // 2, base_y, cx + body_w // 2, base_y + 30),
-        fill=color,
-    )
-
-    # Yon kichik gumbazlar
-    side_dome_r = int(W * 0.045)
-    side_offset = int(W * 0.14)
-    for sign in (-1, 1):
-        x = cx + sign * side_offset
-        d.pieslice(
-            (x - side_dome_r, base_y - side_dome_r * 2, x + side_dome_r, base_y),
-            180, 360, fill=color,
-        )
-
-    # Minoralar (left + right)
-    minaret_w = int(W * 0.018)
-    minaret_h = int(W * 0.16)
-    minaret_top_r = int(W * 0.014)
-    for sign in (-1, 1):
-        mx = cx + sign * int(W * 0.27)
-        # Tana
-        d.rectangle(
-            (mx - minaret_w // 2, base_y - minaret_h,
-             mx + minaret_w // 2, base_y + 30),
-            fill=color,
-        )
-        # Tepa gumbaz
-        d.pieslice(
-            (mx - minaret_top_r, base_y - minaret_h - minaret_top_r * 2,
-             mx + minaret_top_r, base_y - minaret_h),
-            180, 360, fill=color,
-        )
-        # Spire
-        spire_top = base_y - minaret_h - minaret_top_r * 2 - 22
-        d.line(
-            (mx, base_y - minaret_h - minaret_top_r * 2, mx, spire_top),
-            fill=color, width=2,
-        )
-
-    img.alpha_composite(layer)
-
-
-# ============== Glass cards ==============
-
-def _make_glass_card(
-    bg: Image.Image, x: int, y: int, w: int, h: int, radius: int,
-    *, overlay_color: tuple[int, int, int, int] = COLOR_GLASS_OVERLAY,
-    blur: int = 22,
+def _make_vgradient(
+    w: int, h: int, c_top: tuple[int, int, int], c_bot: tuple[int, int, int]
 ) -> Image.Image:
-    """Glassmorphism card — bg ning shu joyini blur qilib + oqartirib qaytaradi."""
-    region = bg.crop((x, y, x + w, y + h)).convert("RGBA")
-    region = region.filter(ImageFilter.GaussianBlur(blur))
-    overlay = Image.new("RGBA", (w, h), overlay_color)
-    region = Image.alpha_composite(region, overlay)
+    grad = Image.new("RGB", (1, h))
+    for y in range(h):
+        t = y / max(h - 1, 1)
+        grad.putpixel((0, y), (
+            int(c_top[0] + (c_bot[0] - c_top[0]) * t),
+            int(c_top[1] + (c_bot[1] - c_top[1]) * t),
+            int(c_top[2] + (c_bot[2] - c_top[2]) * t),
+        ))
+    return grad.resize((w, h)).convert("RGBA")
 
+
+def _rounded(src: Image.Image, radius: int) -> Image.Image:
+    w, h = src.size
     mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, w, h), radius=radius, fill=255,
-    )
-    glass = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    glass.paste(region, (0, 0), mask)
-    return glass
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w, h), radius=radius, fill=255)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(src, (0, 0), mask)
+    return out
 
 
-def _make_shadow(
-    w: int, h: int, radius: int, *, blur: int = 22, opacity: int = 90
-) -> Image.Image:
-    pad = blur * 2
-    canvas = Image.new("RGBA", (w + pad * 2, h + pad * 2), (0, 0, 0, 0))
-    ImageDraw.Draw(canvas).rounded_rectangle(
-        (pad, pad, w + pad, h + pad),
-        radius=radius, fill=(0, 0, 0, opacity),
-    )
-    return canvas.filter(ImageFilter.GaussianBlur(blur))
-
-
-def _draw_gold_ring(
-    img: Image.Image, x: int, y: int, x2: int, y2: int, radius: int
+def _surface(
+    img: Image.Image, x: int, y: int, w: int, h: int, radius: int,
+    *, fill: Image.Image | tuple[int, int, int] = COLOR_SURFACE,
+    border: tuple[int, int, int, int] | None = COLOR_BORDER,
 ) -> None:
-    pad = 18
-    glow_outer = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(glow_outer).rounded_rectangle(
-        (x - pad, y - pad, x2 + pad, y2 + pad),
-        radius=radius + pad,
-        outline=COLOR_GOLD_GLOW_OUT + (140,),
-        width=12,
-    )
-    glow_outer = glow_outer.filter(ImageFilter.GaussianBlur(12))
-    img.alpha_composite(glow_outer)
+    """To'q rounded surface + nozik hairline ramka."""
+    if isinstance(fill, Image.Image):
+        card = _rounded(fill, radius)
+    else:
+        solid = Image.new("RGBA", (w, h), (*fill, 255))
+        card = _rounded(solid, radius)
+    img.alpha_composite(card, (x, y))
+    if border is not None:
+        layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        ImageDraw.Draw(layer).rounded_rectangle(
+            (x, y, x + w, y + h), radius=radius, outline=border, width=2,
+        )
+        img.alpha_composite(layer)
 
-    ring = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    ImageDraw.Draw(ring).rounded_rectangle(
-        (x - 3, y - 3, x2 + 3, y2 + 3),
-        radius=radius + 3,
-        outline=COLOR_GOLD + (255,),
-        width=4,
+
+def _ring(
+    img: Image.Image, x: int, y: int, w: int, h: int, radius: int,
+    color: tuple[int, int, int], width: int = 4,
+) -> None:
+    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ImageDraw.Draw(layer).rounded_rectangle(
+        (x, y, x + w, y + h), radius=radius, outline=(*color, 255), width=width,
     )
-    img.alpha_composite(ring)
+    img.alpha_composite(layer)
 
 
 def _load_emoji(filename: str, target_size: int) -> Image.Image | None:
@@ -339,51 +226,20 @@ def _load_emoji(filename: str, target_size: int) -> Image.Image | None:
         return None
 
 
-def _draw_top_accent(
-    img: Image.Image, x: int, y: int, w: int, h: int, radius: int,
-    color: tuple[int, int, int],
-) -> None:
-    stripe_h = 6
-    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, w, h), radius=radius, fill=255,
-    )
-    body = Image.new("RGB", (w, stripe_h), color)
-    layer.paste(body, (0, 0))
-    top_mask = Image.new("L", (w, h), 0)
-    top_mask.paste(mask.crop((0, 0, w, stripe_h)), (0, 0))
-    layer.putalpha(top_mask)
-    img.alpha_composite(layer, (x, y))
-
-
-def _draw_text_shadow(
+def _draw_spaced(
     d: ImageDraw.ImageDraw, xy: tuple[int, int], text: str,
-    font: ImageFont.FreeTypeFont, fill,
-    *, anchor: str = "mm",
-    shadow_color: tuple[int, int, int, int] = (0, 0, 0, 130),
-    shadow_offset: int = 2,
+    font: ImageFont.FreeTypeFont, fill, *, spacing: int = 4, anchor: str = "lm",
 ) -> None:
-    """Header matni uchun nozik soya (chiroyli o'qilishi uchun)."""
-    d.text(
-        (xy[0] + shadow_offset, xy[1] + shadow_offset),
-        text, font=font, fill=shadow_color, anchor=anchor,
-    )
-    d.text(xy, text, font=font, fill=fill, anchor=anchor)
-
-
-def _next_prayer(home: dict[str, str], highlight: str | None) -> str:
-    """Hero card uchun ko'rsatiladigan namozni aniqlaydi.
-
-    Birinchi navbatda — caller bergan `highlight` (PostService keyingi farzni topadi).
-    Agar yo'q bo'lsa — birinchi farz (Bomdod). Hero har doim ko'rsatiladi.
-    """
-    if highlight and highlight in home:
-        return highlight
-    for p in FARZ_PRAYERS:
-        if home.get(p):
-            return p
-    return "Bomdod"
+    """Harflar orasiga bo'sh joy qo'yib yozadi (uppercase label uchun)."""
+    x, y = xy
+    widths = [d.textlength(ch, font=font) for ch in text]
+    total = sum(widths) + spacing * (len(text) - 1)
+    if anchor and anchor[0] == "m":
+        x -= total / 2
+    cx = x
+    for ch, w in zip(text, widths, strict=True):
+        d.text((cx, y), ch, font=font, fill=fill, anchor="lm")
+        cx += w + spacing
 
 
 # ============== Asosiy generator ==============
@@ -399,7 +255,7 @@ def make_prayer_image(
     size: tuple[int, int] = DEFAULT_SIZE,
     highlight_prayer: str | None = None,
 ) -> Path:
-    """v5: Sunset osmon + masjid silueti + Hero glass card + 5 kichik glass."""
+    """v7: To'q iOS islomiy — hero + 2x3 grid."""
     settings = get_settings()
     W, H = size
 
@@ -410,222 +266,228 @@ def make_prayer_image(
     if has_mosq:
         _apply_fallback(home, mosq)
 
-    # ============== Sunset BG ==============
-    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    sky = _make_sky_gradient(W, H).convert("RGBA")
-    img.paste(sky, (0, 0))
-    _draw_stars(img, count=85)
-    # Yarim oy yuqori-o'ng
-    _draw_crescent(img, cx=int(W * 0.85), cy=int(H * 0.10), r=42)
-    # Masjid silueti pastda
-    _draw_mosque_silhouette(img)
+    img = _make_bg(W, H)
 
-    # `bg` keyinchalik glass cardlar uchun ishlatamiz
-    bg_for_glass = img.copy()
+    # ── Masjidul Aqso motivi — header markazidagi bo'sh joyda, ixcham ────
+    motif_w = int(0.30 * W)
+    motif_h = int(0.115 * H)
+    motif = aqsa_backdrop(width=motif_w, height=motif_h, color=COLOR_GOLD, alpha=50)
+    img.alpha_composite(
+        motif, (W // 2 - motif_w // 2, int(0.140 * H) - motif_h),
+    )
+
+    # ── Premium ikki qavat oltin hoshiya ──────────────────────────────────
+    frame = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    fd = ImageDraw.Draw(frame)
+    m1 = int(0.018 * W)
+    fd.rounded_rectangle(
+        (m1, m1, W - m1, H - m1),
+        radius=int(0.030 * W), outline=(*COLOR_GOLD, 110), width=3,
+    )
+    m2 = m1 + 10
+    fd.rounded_rectangle(
+        (m2, m2, W - m2, H - m2),
+        radius=int(0.026 * W), outline=(*COLOR_GOLD, 50), width=1,
+    )
+    img.alpha_composite(frame)
 
     d = ImageDraw.Draw(img)
 
     # ============== Fontlar ==============
-    f_title = _load_font(FONT_FILES["title"], int(0.058 * H))
-    _try_variant(f_title, "Bold")
-    f_sub = _load_font(FONT_FILES["subtitle"], int(0.026 * H))
-    _try_variant(f_sub, "SemiBold")
+    f_region = _load_font(FONT_FILES["title"], int(0.052 * H))
+    _try_variant(f_region, "Bold")
+    f_label = _load_font(FONT_FILES["subtitle"], int(0.018 * H))
+    _try_variant(f_label, "SemiBold")
+    f_date = _load_font(FONT_FILES["subtitle"], int(0.024 * H))
+    _try_variant(f_date, "SemiBold")
+    f_date_dim = _load_font(FONT_FILES["subtitle"], int(0.021 * H))
+    _try_variant(f_date_dim, "Medium")
 
-    f_hero_label = _load_font(FONT_FILES["subtitle"], int(0.024 * H))
+    f_hero_label = _load_font(FONT_FILES["subtitle"], int(0.020 * H))
     _try_variant(f_hero_label, "Bold")
-    f_hero_name = _load_font(FONT_FILES["name"], int(0.038 * H))
-    _try_variant(f_hero_name, "SemiBold")
-    f_hero_time = _load_font(FONT_FILES["time"], int(0.130 * H))
+    f_hero_name = _load_font(FONT_FILES["name"], int(0.040 * H))
+    _try_variant(f_hero_name, "Bold")
+    f_hero_time = _load_font(FONT_FILES["time"], int(0.115 * H))
     _try_variant(f_hero_time, "Bold")
-    f_hero_sub = _load_font(FONT_FILES["subtitle"], int(0.024 * H))
+    f_hero_sub = _load_font(FONT_FILES["subtitle"], int(0.022 * H))
     _try_variant(f_hero_sub, "SemiBold")
 
-    f_card_name = _load_font(FONT_FILES["name"], int(0.022 * H))
-    _try_variant(f_card_name, "SemiBold")
-    f_card_time = _load_font(FONT_FILES["time"], int(0.044 * H))
+    f_card_name = _load_font(FONT_FILES["name"], int(0.023 * H))
+    _try_variant(f_card_name, "Bold")
+    f_card_time = _load_font(FONT_FILES["time"], int(0.046 * H))
     _try_variant(f_card_time, "Bold")
-    f_card_jamoat = _load_font(FONT_FILES["subtitle"], int(0.018 * H))
+    f_card_jamoat = _load_font(FONT_FILES["subtitle"], int(0.0165 * H))
+    _try_variant(f_card_jamoat, "Medium")
 
-    f_footer = _load_font(FONT_FILES["subtitle"], int(0.018 * H))
+    f_footer = _load_font(FONT_FILES["subtitle"], int(0.019 * H))
+    _try_variant(f_footer, "Medium")
 
-    # ============== Header (Ka'ba + city + dates) ==============
-    kaaba_size = int(0.070 * H)
-    kaaba = _load_emoji("kaaba.png", kaaba_size)
+    margin = int(0.052 * W)
 
-    title_text = region_name.upper()
-    title_bbox = d.textbbox((0, 0), title_text, font=f_title)
-    title_w = title_bbox[2] - title_bbox[0]
-
-    header_y = int(0.075 * H)
-    if kaaba:
-        kw = kaaba.size[0]
-        gap = 16
-        total_w = kw + gap + title_w
-        sx = (W - total_w) // 2
-        img.alpha_composite(kaaba, (sx, header_y - kaaba.size[1] // 2))
-        _draw_text_shadow(
-            d, (sx + kw + gap, header_y), title_text,
-            f_title, fill=COLOR_HEADER_TEXT, anchor="lm",
-        )
-    else:
-        _draw_text_shadow(
-            d, (W // 2, header_y), title_text,
-            f_title, fill=COLOR_HEADER_TEXT, anchor="mm",
-        )
-
-    # Sanalar
-    _draw_text_shadow(
-        d, (W // 2, int(0.130 * H)), milodiy,
-        f_sub, fill=COLOR_HEADER_TEXT, anchor="mm",
+    # ============== Header ==============
+    region_y = int(0.082 * H)
+    pin = _load_emoji("round_pushpin.png", int(0.044 * H))
+    rx = margin
+    if pin:
+        img.alpha_composite(pin, (rx, region_y - pin.size[1] // 2))
+        rx += pin.size[0] + 12
+    d.text(
+        (rx, region_y), region_name.upper(),
+        font=f_region, fill=COLOR_GOLD, anchor="lm",
     )
-    _draw_text_shadow(
-        d, (W // 2, int(0.165 * H)), hijriy,
-        f_sub, fill=COLOR_HEADER_DIM, anchor="mm",
+    _draw_spaced(
+        d, (margin + 2, int(0.122 * H)), "NAMOZ VAQTLARI",
+        f_label, COLOR_DIM, spacing=4,
     )
 
-    # Oltin nuqtali ajratuvchi chiziq
-    line_y = int(0.195 * H)
-    line_pad = int(0.30 * W)
-    d.line((line_pad, line_y, W - line_pad - 12, line_y), fill=(255, 220, 180, 200), width=2)
-    d.ellipse((W // 2 - 4, line_y - 4, W // 2 + 4, line_y + 4), fill=COLOR_HEADER_DOT)
-    d.line((line_pad + 12, line_y, W // 2 - 8, line_y), fill=(255, 220, 180, 200), width=2)
-    d.line((W // 2 + 8, line_y, W - line_pad, line_y), fill=(255, 220, 180, 200), width=2)
+    # Sanalar — o'ng tomonda
+    d.text(
+        (W - margin, int(0.078 * H)), milodiy,
+        font=f_date, fill=COLOR_WHITE, anchor="rm",
+    )
+    d.text(
+        (W - margin, int(0.116 * H)), hijriy,
+        font=f_date_dim, fill=COLOR_DIM, anchor="rm",
+    )
+
+    # Nozik oltin ajratuvchi chiziq + markazda romb aksent
+    line_y = int(0.155 * H)
+    line = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ld_ = ImageDraw.Draw(line)
+    dia = 7
+    ld_.line(
+        (margin, line_y, W // 2 - dia - 8, line_y), fill=(*COLOR_GOLD, 90), width=2,
+    )
+    ld_.line(
+        (W // 2 + dia + 8, line_y, W - margin, line_y), fill=(*COLOR_GOLD, 90), width=2,
+    )
+    ld_.polygon(
+        [
+            (W // 2, line_y - dia), (W // 2 + dia, line_y),
+            (W // 2, line_y + dia), (W // 2 - dia, line_y),
+        ],
+        fill=(*COLOR_GOLD, 200),
+    )
+    img.alpha_composite(line)
 
     # ============== HERO card (next prayer) ==============
-    hero_top = int(0.225 * H)
-    hero_bottom = int(0.58 * H)
-    hero_x = int(0.055 * W)
-    hero_x2 = W - hero_x
-    hero_w = hero_x2 - hero_x
-    hero_h = hero_bottom - hero_top
-    hero_radius = int(0.030 * W)
-
     hero_prayer = _next_prayer(home, highlight_prayer)
+    accent = COLOR_ACCENT.get(hero_prayer, (120, 130, 160))
+    accent_dark = COLOR_ACCENT_DARK.get(hero_prayer, (70, 80, 110))
 
-    # Soya
-    hero_shadow = _make_shadow(hero_w, hero_h, hero_radius, blur=24, opacity=110)
-    img.alpha_composite(hero_shadow, (hero_x - 48, hero_top - 38))
+    hero_x = margin
+    hero_y = int(0.185 * H)
+    hero_w = W - 2 * margin
+    hero_h = int(0.245 * H)
+    hero_radius = int(0.034 * W)
 
-    # Glass card
-    overlay = (
-        COLOR_GLASS_HIGHLIGHT
-        if hero_prayer == highlight_prayer
-        else COLOR_GLASS_OVERLAY
-    )
-    hero_glass = _make_glass_card(
-        bg_for_glass, hero_x, hero_top, hero_w, hero_h, hero_radius,
-        overlay_color=overlay,
-    )
-    img.alpha_composite(hero_glass, (hero_x, hero_top))
-    _draw_top_accent(
-        img, hero_x, hero_top, hero_w, hero_h, hero_radius,
-        COLOR_ACCENT.get(hero_prayer, (200, 200, 200)),
+    # Aksent nur (glow) hero ortida — chuqurlik uchun
+    hglow = _radial_glow(int(hero_w * 1.1), accent, 70)
+    img.alpha_composite(
+        hglow,
+        (hero_x + hero_w // 2 - hglow.size[0] // 2,
+         hero_y + hero_h // 2 - hglow.size[1] // 2),
     )
 
-    if hero_prayer == highlight_prayer:
-        _draw_gold_ring(img, hero_x, hero_top, hero_x2, hero_top + hero_h, hero_radius)
+    hero_fill = _make_vgradient(hero_w, hero_h, accent, accent_dark)
+    _surface(img, hero_x, hero_y, hero_w, hero_h, hero_radius,
+             fill=hero_fill, border=(255, 255, 255, 55))
 
-    # Hero kontenti — emoji chap, matn o'ng
-    hero_emoji_size = int(hero_h * 0.75)
-    hero_emoji = _load_emoji(EMOJI_FILES.get(hero_prayer, ""), hero_emoji_size)
-    if hero_emoji:
-        ex = hero_x + int(hero_w * 0.05)
-        ey = hero_top + (hero_h - hero_emoji.size[1]) // 2
-        img.alpha_composite(hero_emoji, (ex, ey))
+    # Emoji chap
+    hero_em_size = int(hero_h * 0.66)
+    hero_em = _load_emoji(EMOJI_FILES.get(hero_prayer, ""), hero_em_size)
+    if hero_em:
+        ex = hero_x + int(hero_w * 0.055)
+        ey = hero_y + (hero_h - hero_em.size[1]) // 2
+        img.alpha_composite(hero_em, (ex, ey))
 
-    tx = hero_x + int(hero_w * 0.45)
-    label_text = "KEYINGI NAMOZ" if hero_prayer == highlight_prayer else "BUGUNGI NAMOZLAR"
-    d.text(
-        (tx, hero_top + int(hero_h * 0.18)),
-        label_text,
-        font=f_hero_label, fill=COLOR_GOLD, anchor="lm",
+    tx = hero_x + int(hero_w * 0.34)
+    label_text = "KEYINGI NAMOZ" if hero_prayer == highlight_prayer else "BUGUNGI NAMOZ"
+    _draw_spaced(
+        d, (tx, hero_y + int(hero_h * 0.22)), label_text,
+        f_hero_label, (255, 255, 255, 215), spacing=3,
     )
     d.text(
-        (tx, hero_top + int(hero_h * 0.32)),
-        hero_prayer.upper(),
-        font=f_hero_name, fill=COLOR_TEXT_NAME, anchor="lm",
+        (tx, hero_y + int(hero_h * 0.40)), hero_prayer,
+        font=f_hero_name, fill=COLOR_WHITE, anchor="lm",
     )
+    time_y = hero_y + int(hero_h * 0.70)
     d.text(
-        (tx, hero_top + int(hero_h * 0.58)),
-        home.get(hero_prayer) or EMPTY_MARK,
-        font=f_hero_time, fill=COLOR_TEXT_TIME, anchor="lm",
+        (tx, time_y), home.get(hero_prayer) or EMPTY_MARK,
+        font=f_hero_time, fill=COLOR_WHITE, anchor="lm",
     )
     if has_mosq and mosq.get(hero_prayer):
+        time_w = d.textlength(home.get(hero_prayer) or EMPTY_MARK, font=f_hero_time)
         d.text(
-            (tx, hero_top + int(hero_h * 0.84)),
-            f"Jamoat  {mosq.get(hero_prayer)}",
-            font=f_hero_sub, fill=COLOR_TEXT_JAMOAT, anchor="lm",
+            (tx + time_w + 22, time_y + int(hero_h * 0.06)),
+            f"jamoat {mosq.get(hero_prayer)}",
+            font=f_hero_sub, fill=(255, 255, 255, 215), anchor="lm",
         )
 
-    # ============== 5 kichik kartlar pastda ==============
-    other_prayers = [p for p in ALL_PRAYERS if p != hero_prayer]
-    n_small = len(other_prayers)
+    # ============== 2x3 grid — barcha 6 namoz ==============
+    grid_top = int(0.470 * H)
+    grid_bottom = int(0.935 * H)
+    cols, rows = 3, 2
+    gap = int(0.020 * W)
+    card_radius = int(0.026 * W)
 
-    small_top = int(0.605 * H)
-    small_bottom = int(0.86 * H)
-    small_h = small_bottom - small_top
-    small_margin = int(0.045 * W)
-    small_gap = int(0.014 * W)
-    available_w = W - 2 * small_margin - small_gap * (n_small - 1)
-    small_w = available_w // n_small
-    small_radius = int(0.022 * W)
+    grid_w = W - 2 * margin
+    card_w = (grid_w - gap * (cols - 1)) // cols
+    card_h = (grid_bottom - grid_top - gap * (rows - 1)) // rows
 
-    for i, prayer in enumerate(other_prayers):
-        sx = small_margin + i * (small_w + small_gap)
-        sy = small_top
-        sx2 = sx + small_w
-        sy2 = sy + small_h
+    for idx, prayer in enumerate(ALL_PRAYERS):
+        row, col = divmod(idx, cols)
+        cx0 = margin + col * (card_w + gap)
+        cy0 = grid_top + row * (card_h + gap)
+        is_next = (prayer == highlight_prayer)
+        p_accent = COLOR_ACCENT.get(prayer, (120, 130, 160))
 
-        is_highlighted = (prayer == highlight_prayer)
+        if is_next:
+            # Keyingi namoz: aksent tint + aksent halqa
+            tint = Image.new("RGBA", (card_w, card_h), (*p_accent, 38))
+            base = Image.new("RGBA", (card_w, card_h), (*COLOR_SURFACE, 255))
+            fill_img = Image.alpha_composite(base, tint)
+            _surface(img, cx0, cy0, card_w, card_h, card_radius,
+                     fill=fill_img, border=None)
+            _ring(img, cx0, cy0, card_w, card_h, card_radius, p_accent, width=3)
+        else:
+            _surface(img, cx0, cy0, card_w, card_h, card_radius)
 
-        # Soya
-        sm_shadow = _make_shadow(small_w, small_h, small_radius, blur=18, opacity=90)
-        img.alpha_composite(sm_shadow, (sx - 36, sy - 28))
+        ccx = cx0 + card_w // 2
 
-        # Glass card
-        ov = COLOR_GLASS_HIGHLIGHT if is_highlighted else COLOR_GLASS_OVERLAY
-        sm_glass = _make_glass_card(
-            bg_for_glass, sx, sy, small_w, small_h, small_radius,
-            overlay_color=ov, blur=18,
-        )
-        img.alpha_composite(sm_glass, (sx, sy))
-        _draw_top_accent(
-            img, sx, sy, small_w, small_h, small_radius,
-            COLOR_ACCENT.get(prayer, (200, 200, 200)),
-        )
-        if is_highlighted:
-            _draw_gold_ring(img, sx, sy, sx2, sy2, small_radius)
-
-        # Vertical layout: emoji top, name middle, time bottom
-        cx = (sx + sx2) // 2
-        em_size = int(small_h * 0.42)
+        em_size = int(card_h * 0.36)
         em = _load_emoji(EMOJI_FILES.get(prayer, ""), em_size)
         if em:
             img.alpha_composite(
-                em, (cx - em.size[0] // 2, sy + int(small_h * 0.08)),
+                em, (ccx - em.size[0] // 2, cy0 + int(card_h * 0.10)),
             )
 
         d.text(
-            (cx, sy + int(small_h * 0.62)),
-            prayer.upper(),
-            font=f_card_name, fill=COLOR_TEXT_NAME, anchor="mm",
+            (ccx, cy0 + int(card_h * 0.555)), prayer,
+            font=f_card_name, fill=p_accent, anchor="mm",
         )
+        jamoat = mosq.get(prayer) if has_mosq else None
+        time_yy = cy0 + int(card_h * (0.74 if jamoat else 0.80))
         d.text(
-            (cx, sy + int(small_h * 0.85)),
-            home.get(prayer) or EMPTY_MARK,
-            font=f_card_time, fill=COLOR_TEXT_TIME, anchor="mm",
+            (ccx, time_yy), home.get(prayer) or EMPTY_MARK,
+            font=f_card_time, fill=COLOR_WHITE, anchor="mm",
         )
+        if jamoat:
+            d.text(
+                (ccx, cy0 + int(card_h * 0.91)),
+                f"jamoat {jamoat}",
+                font=f_card_jamoat, fill=COLOR_GOLD, anchor="mm",
+            )
 
     # ============== Footer ==============
-    foot_y = int(0.965 * H)
     attribution = (
         "islomapi.uz · O'zbekiston musulmonlari idorasi"
         if has_mosq
-        else "Aladhan API · ISNA · Hanafi"
+        else "Aladhan API · ISNA · Hanafiy mazhab"
     )
-    _draw_text_shadow(
-        d, (W // 2, foot_y), attribution,
-        f_footer, fill=COLOR_HEADER_DIM, anchor="mm",
+    d.text(
+        (W // 2, int(0.965 * H)), attribution,
+        font=f_footer, fill=COLOR_DIM, anchor="mm",
     )
 
     # ============== Saqlash ==============

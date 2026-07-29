@@ -7,14 +7,17 @@ from app.scheduler.jobs.qashqadaryo_post import (
     send_qashqadaryo_post,
 )
 from app.scheduler.jobs.refresh import refresh_farz_jobs
+from app.scheduler.jobs.sheets_sync import restore_from_sheets, run_sheets_sync
 from app.scheduler.jobs.tahajjud_notification import fire_tahajjud_notification
 
 __all__ = [
     "fire_farz_notification",
     "fire_tahajjud_notification",
     "refresh_farz_jobs",
+    "restore_from_sheets",
     "run_daily_post",
     "run_db_backup",
     "run_qashqadaryo_post",
+    "run_sheets_sync",
     "send_qashqadaryo_post",
 ]

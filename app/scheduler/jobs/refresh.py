@@ -98,6 +98,12 @@ async def refresh_farz_jobs(scheduler: AsyncIOScheduler, bot: Bot) -> None:
             try:
                 tz = pytz.timezone(tz_name)
             except pytz.UnknownTimeZoneError:
+                logger.warning(
+                    "Region '{}' timezone noto'g'ri ({!r}) — {} ishlatiladi. "
+                    "Admin panelda tuzating, aks holda eslatmalar noto'g'ri "
+                    "vaqtda ketishi mumkin!",
+                    region.name, tz_name, settings.TIMEZONE,
+                )
                 tz = pytz.timezone(settings.TIMEZONE)
 
             now = datetime.now(tz)

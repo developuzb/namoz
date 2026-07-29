@@ -9,6 +9,8 @@ FSM oqim:
 """
 from __future__ import annotations
 
+import asyncio
+
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
@@ -36,11 +38,32 @@ from app.db.models.user import User
 from app.db.repositories.masjid_time_repo import MasjidTimeRepository
 from app.db.repositories.region_repo import RegionRepository
 from app.utils.text_utils import escape_html
-from app.utils.time_utils import clean_hhmm
+from app.utils.time_utils import clean_hhmm, parse_prayer_times_block
 
 router = Router(name="admin.masjid_times")
 router.message.filter(AdminFilter())
 router.callback_query.filter(AdminFilter())
+
+
+def _schedule_sheets_push() -> None:
+    """Sheets sync'ni fonda ishga tushiradi (sozlanmagan bo'lsa — hech nima).
+
+    2 soniya kutish — middleware'dagi DB commit tugashi uchun.
+    """
+    from app.core.config import get_settings
+
+    if not get_settings().sheets_configured:
+        return
+
+    async def _delayed() -> None:
+        await asyncio.sleep(2)
+        from app.scheduler.jobs.sheets_sync import run_sheets_sync
+
+        # pull=False — DB eng yangi holatda; pull qilinsa hozirgina saqlangan
+        # vaqt eskirgan Sheet qiymati bilan qaytarib o'chirilardi.
+        await run_sheets_sync(pull=False)
+
+    asyncio.create_task(_delayed())  # noqa: RUF006
 
 
 # =================== Entry: viloyat list ===================
@@ -117,6 +140,9 @@ async def pick_viloyat(
         await call.answer("Noto'g'ri", show_alert=True)
         return
 
+    # region_id'ni FSM'ga yozamiz — 5-farz ekranida to'liq ro'yxat matn
+    # yuborilsa (bulk), qaysi viloyat ekanini shu yerdan olamiz.
+    await state.update_data(region_id=viloyat_id)
     await _show_prayers_for_region(call, session, region_id=viloyat_id)
     await state.set_state(MasjidTimeFSM.choosing_prayer)
 
@@ -146,7 +172,14 @@ async def _show_prayers_for_region(
 
     text = (
         f"🕌 <b>{escape_html(region.name)}</b> — masjid vaqtlari\n\n"
-        "Tahrirlash uchun namozga bosing:"
+        "Bitta vaqtni tahrirlash uchun namozga bosing.\n\n"
+        "Yoki barcha vaqtlarni <b>bitta xabarda</b> yuboring — hammasi "
+        "birdan yangilanadi:\n"
+        "<code>Bomdod 04:55\n"
+        "Peshin 13:00\n"
+        "Asr 18:00\n"
+        "Shom 20:00\n"
+        "Xufton 21:30</code>"
     )
     await call.message.edit_text(
         text, reply_markup=mt_prayer_picker(region_id, current),
@@ -194,26 +227,107 @@ async def pick_prayer(
     await call.answer()
 
 
-# =================== Vaqt qabul qilish ===================
+# =================== Cancel (message handlerlaridan OLDIN) ===================
+
+# MUHIM: /cancel ni ushlaydigan handler quyidagi "catch-all" matn
+# handlerlaridan OLDIN ro'yxatdan o'tishi kerak — aks holda receive_time /
+# receive_bulk_times uni yutib yuboradi va foydalanuvchi FSM'da tiqilib qoladi.
+
+@router.callback_query(StateFilter(MasjidTimeFSM), F.data == CB_MT_CANCEL)
+async def cancel_via_button(
+    call: CallbackQuery, state: FSMContext
+) -> None:
+    await state.clear()
+    await call.message.edit_text(
+        "❌ Bekor qilindi.\n\n👑 <b>Admin paneli</b>",
+        reply_markup=admin_panel_keyboard(),
+    )
+    await call.answer()
+
+
+@router.message(Command("cancel"), StateFilter(MasjidTimeFSM))
+async def cancel_via_command(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(
+        "❌ Bekor qilindi.\n\n👑 <b>Admin paneli</b>",
+        reply_markup=admin_panel_keyboard(),
+    )
+
+
+# =================== Vaqtlarni saqlab, ro'yxatga qaytarish (umumiy) ===================
+
+async def _apply_bulk_and_reply(
+    message: Message,
+    session: AsyncSession,
+    state: FSMContext,
+    user: User,
+    *,
+    region_id: int,
+    parsed: dict[str, str],
+) -> None:
+    """Bir nechta namoz vaqtini birdan saqlaydi va 5-farz ro'yxatiga qaytaradi."""
+    mr = MasjidTimeRepository(session)
+    rr = RegionRepository(session)
+
+    await mr.bulk_upsert(
+        region_id=region_id, times=parsed, updated_by_tg_id=user.tg_id
+    )
+
+    region = await rr.get(region_id)
+    logger.info(
+        "Masjid vaqtlari (bulk) yangilandi: tg_id={} region={} {}",
+        user.tg_id, region.name if region else region_id, parsed,
+    )
+
+    # Google Sheets'ga export (pull=False — DB eng yangi holatda)
+    _schedule_sheets_push()
+
+    lines = "\n".join(
+        f"🕋 <b>{p}</b> — <code>{parsed[p]}</code>"
+        for p in FARZ_PRAYERS
+        if p in parsed
+    )
+    await message.answer(f"✅ <b>{len(parsed)}</b> ta vaqt saqlandi:\n{lines}")
+
+    # 5 farz tugmali ro'yxatga qaytaramiz (yangilangan vaqtlar bilan)
+    current = await mr.get_for_region(region_id)
+    await state.set_state(MasjidTimeFSM.choosing_prayer)
+    await message.answer(
+        f"🕌 <b>{escape_html(region.name if region else '?')}</b> — masjid vaqtlari\n\n"
+        "Boshqa namozni ham tahrir qilishingiz mumkin:",
+        reply_markup=mt_prayer_picker(region_id, current),
+    )
+
+
+# =================== Bitta vaqt qabul qilish (tugma orqali) ===================
 
 @router.message(StateFilter(MasjidTimeFSM.entering_time))
 async def receive_time(
     message: Message, session: AsyncSession, state: FSMContext, user: User
 ) -> None:
     if message.text and message.text.startswith("/"):
-        return  # /cancel singari komandalar boshqa handler'ga
+        return  # /cancel yuqorida ushlangan
+
+    data = await state.get_data()
+    region_id = data.get("region_id")
+
+    # Bitta vaqt o'rniga to'liq ro'yxat yuborilgan bo'lsa — bulk sifatida qabul
+    parsed = parse_prayer_times_block(message.text or "")
+    if len(parsed) >= 2 and region_id:
+        await _apply_bulk_and_reply(
+            message, session, state, user, region_id=region_id, parsed=parsed
+        )
+        return
 
     cleaned = clean_hhmm(message.text)
     if cleaned is None:
         await message.answer(
             "❌ Vaqt formati noto'g'ri. <code>HH:MM</code> ko'rinishida yuboring "
             "(masalan, <code>17:35</code>).\n\n"
-            "Yoki bekor qiling: /cancel"
+            "Yoki barcha vaqtlarni birdan yuboring, yoki bekor qiling: /cancel"
         )
         return
 
-    data = await state.get_data()
-    region_id = data.get("region_id")
     prayer = data.get("prayer")
     if not region_id or not prayer:
         await state.clear()
@@ -236,6 +350,9 @@ async def receive_time(
         user.tg_id, region.name if region else region_id, prayer, cleaned,
     )
 
+    # Google Sheets'ga export (pull=False — DB eng yangi holatda)
+    _schedule_sheets_push()
+
     await message.answer(
         f"✅ <b>{prayer}</b> vaqti <code>{cleaned}</code> qilib saqlandi."
     )
@@ -250,24 +367,46 @@ async def receive_time(
     )
 
 
-# =================== Cancel ===================
+# =================== To'liq ro'yxat qabul qilish (matn orqali) ===================
 
-@router.callback_query(StateFilter(MasjidTimeFSM), F.data == CB_MT_CANCEL)
-async def cancel_via_button(
-    call: CallbackQuery, state: FSMContext
+@router.message(StateFilter(MasjidTimeFSM.choosing_prayer))
+async def receive_bulk_times(
+    message: Message, session: AsyncSession, state: FSMContext, user: User
 ) -> None:
-    await state.clear()
-    await call.message.edit_text(
-        "❌ Bekor qilindi.\n\n👑 <b>Admin paneli</b>",
-        reply_markup=admin_panel_keyboard(),
-    )
-    await call.answer()
+    """5-farz ekranida to'liq vaqt ro'yxati yuborilsa — hammasini birdan saqlaydi.
 
+    Masalan (lotin yoki kirill, emoji/tinish belgilari muhim emas)::
 
-@router.message(Command("cancel"), StateFilter(MasjidTimeFSM))
-async def cancel_via_command(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer(
-        "❌ Bekor qilindi.\n\n👑 <b>Admin paneli</b>",
-        reply_markup=admin_panel_keyboard(),
+        🕋 Бомдод 04:55;
+        🕋 Пешин 13:00;
+        🕋 Аср 18:00;
+        🕋 Шом 20:00;
+        🕋 Хуфтон 21:30.
+    """
+    if message.text and message.text.startswith("/"):
+        return  # /cancel yuqorida ushlangan
+
+    data = await state.get_data()
+    region_id = data.get("region_id")
+    if not region_id:
+        await state.clear()
+        await message.answer("⚠️ Sessiya tugadi. Qaytadan boshlang: /admin")
+        return
+
+    parsed = parse_prayer_times_block(message.text or "")
+    if not parsed:
+        await message.answer(
+            "❌ Vaqtlarni ajrata olmadim.\n\n"
+            "Namoz nomiga tugmadan bosing yoki barcha vaqtlarni shu "
+            "ko'rinishda yuboring:\n\n"
+            "<code>Bomdod 04:55\n"
+            "Peshin 13:00\n"
+            "Asr 18:00\n"
+            "Shom 20:00\n"
+            "Xufton 21:30</code>"
+        )
+        return
+
+    await _apply_bulk_and_reply(
+        message, session, state, user, region_id=region_id, parsed=parsed
     )

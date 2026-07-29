@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.filters import AdminFilter
 from app.core.exceptions import ProviderError
+from app.core.logger import logger
 from app.db.models.region import Region
 from app.services.prayer_provider import (
     AladhanProvider,
@@ -55,6 +56,7 @@ async def _check_db(session: AsyncSession) -> tuple[bool, str]:
         )
         return True, f"OK ({count} ta region)"
     except Exception as e:  # noqa: BLE001
+        logger.warning("Health DB tekshiruvi xato: {}", e)
         return False, f"FAIL: {e}"
 
 

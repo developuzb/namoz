@@ -34,6 +34,8 @@ dependencies = [
     "lxml>=5.3.0",
     # Admin uchun stats grafiklar
     "matplotlib>=3.10.0",
+    # Google Sheets sync (doimiy xotira)
+    "gspread>=6.1.0",
 ]
 
 [dependency-groups]
@@ -75,6 +77,12 @@ select = [
 ignore = [
     "E501",     # line too long (formatter handles it)
     "B008",     # function call in default args (FastAPI/aiogram pattern)
+    # Loyiha lotin + kirill (o'zbekcha) matn bilan ishlaydi — namoz nomlari,
+    # viloyatlar va foydalanuvchi matnlari kirillda ham keladi. Shu sabab
+    # "ambiguous unicode character" qoidalari o'chirilgan (false-positive).
+    "RUF001",   # ambiguous char in string
+    "RUF002",   # ambiguous char in docstring
+    "RUF003",   # ambiguous char in comment
 ]
 
 [tool.ruff.lint.per-file-ignores]

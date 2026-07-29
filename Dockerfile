@@ -75,10 +75,14 @@ ENV PATH="/app/.venv/bin:$PATH" \
 RUN mkdir -p /app/data/images /app/logs \
     && chown -R botuser:botuser /app/data /app/logs
 
+# Entrypoint (avtomatik migratsiya + start)
+COPY --chown=botuser:botuser docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
+
 USER botuser
 
 # Healthcheck — log faylga qarab
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
     CMD test -f /app/logs/bot.log || exit 1
 
-CMD ["python", "-m", "app"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

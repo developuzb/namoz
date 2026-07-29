@@ -1,13 +1,12 @@
-"""Qashqadaryo viloyati — premium dizayn v6 (2x HD), kunlik namoz vaqtlari posteri.
+"""Qashqadaryo viloyati — kunlik namoz vaqtlari posteri.
 
-Tuzilish (v6 — 2x HD):
-  * Canvas: 2160×4064 px (2x supersampling) — maksimal keskinlik
-  * Toʻq yashil gradient header (kaaba ikoni, oltin sarlavha)
-  * Gradient ustun sarlavhalari (qoʻyu → yorqin)
-  * Alternating row shading
-  * Gradient sana banneri, yumaloq burchaklar
-  * Oltin accent, chiziqlar, ajratuvchilar
-  * PNG lossless, compress_level=1 (eng yuqori sifat)
+v7 — Zamonaviy iOS islomiy dizayn (2x HD):
+  * Chuqur to'q yashil-charcoal gradient fon + yumshoq nur (glow)
+  * iOS "grouped table" karti: yumaloq burchak, hairline ajratuvchilar
+  * To'yingan rang bloklari o'rniga — neytral hujayralar + rangli ustun aksenti
+  * Oltin sarlavha, kaaba ikoni, iOS pill ko'rinishidagi sana
+  * Masjid vaqtlari — alohida oltin-tint sub-kart
+  * Nafis tipografika, ko'p bo'sh joy, premium his
 """
 from __future__ import annotations
 
@@ -15,16 +14,16 @@ import re
 from datetime import date
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.core.config import get_settings
 from app.core.logger import logger
+from app.services.backdrop import aqsa_backdrop
 from app.utils.time_utils import clean_hhmm
 
 # ── Canvas ────────────────────────────────────────────────────────────────────
-SCALE: int = 2                                      # 2x supersampling → HD
-DEFAULT_SIZE: tuple[int, int] = (1080 * SCALE, 2032 * SCALE)
-_M = 24 * SCALE  # margin
+SCALE: int = 2                                      # 2x → HD
+DEFAULT_SIZE: tuple[int, int] = (1080 * SCALE, 1952 * SCALE)
 
 # ── Fonts ─────────────────────────────────────────────────────────────────────
 FONT_FILES: dict[str, str] = {
@@ -58,78 +57,37 @@ CYR_MONTHS: dict[int, str] = {
     9: "СЕНТЯБР", 10: "ОКТЯБР", 11: "НОЯБР", 12: "ДЕКАБР",
 }
 
-# ── Prayer columns ────────────────────────────────────────────────────────────
+# ── Prayer columns (iOS aksent ranglari, kun davriga mos) ──────────────────────
 PRAYER_COLUMNS: list[dict] = [
-    {
-        "key": "Bomdod",  "cyr": "БОМДОД",
-        "color":      (38, 98, 175),
-        "color_dark": (22, 62, 125),
-        "subtitle": "(Азон\nайтилиш\nвақти)",
-        "icon": "cityscape_dusk.png",
-    },
-    {
-        "key": "Quyosh",  "cyr": "ҚУЁШ",
-        "color":      (155, 118, 12),
-        "color_dark": (108, 80, 8),
-        "subtitle": "(Бомдод\nтугаши\nвақти)",
-        "icon": "sunrise.png",
-    },
-    {
-        "key": "Peshin",  "cyr": "ПЕШИН",
-        "color":      (185, 60, 38),
-        "color_dark": (132, 38, 22),
-        "subtitle": "(Кириш\nвақти)",
-        "icon": "sun_face.png",
-    },
-    {
-        "key": "Asr",     "cyr": "АСР",
-        "color":      (198, 108, 32),
-        "color_dark": (142, 72, 18),
-        "subtitle": "(Азон\nвақти)",
-        "icon": "sun_cloud.png",
-    },
-    {
-        "key": "Shom",    "cyr": "ШОМ",
-        "color":      (60, 78, 105),
-        "color_dark": (38, 54, 78),
-        "subtitle": "(Азон\nвақти)",
-        "icon": "sunset.png",
-    },
-    {
-        "key": "Xufton",  "cyr": "ХУФТОН",
-        "color":      (82, 72, 65),
-        "color_dark": (52, 45, 40),
-        "subtitle": "(Азон\nвақти)",
-        "icon": "moon.png",
-    },
+    {"key": "Bomdod", "cyr": "БОМДОД", "accent": (96, 170, 255),  "icon": "cityscape_dusk.png"},
+    {"key": "Quyosh", "cyr": "ҚУЁШ",   "accent": (255, 201, 102), "icon": "sunrise.png"},
+    {"key": "Peshin", "cyr": "ПЕШИН",  "accent": (255, 128, 99),  "icon": "sun_face.png"},
+    {"key": "Asr",    "cyr": "АСР",    "accent": (255, 168, 82),  "icon": "sun_cloud.png"},
+    {"key": "Shom",   "cyr": "ШОМ",    "accent": (236, 124, 162), "icon": "sunset.png"},
+    {"key": "Xufton", "cyr": "ХУФТОН", "accent": (146, 138, 238), "icon": "moon.png"},
 ]
 
 # ── Colors ────────────────────────────────────────────────────────────────────
-COLOR_PAGE_BG    = (244, 242, 238)
+COLOR_BG_TOP    = (13, 28, 23)        # chuqur yashil-charcoal
+COLOR_BG_BOT    = (7, 15, 12)
+COLOR_GLOW      = (42, 96, 66)        # header ortidagi yumshoq nur
 
-COLOR_HDR_TOP    = (8, 36, 22)
-COLOR_HDR_BOT    = (22, 75, 47)
-COLOR_HDR_WHITE  = (255, 255, 255)
-COLOR_HDR_GOLD   = (218, 172, 68)
+COLOR_GOLD      = (214, 176, 98)
+COLOR_GOLD_DK   = (168, 132, 64)
+COLOR_WHITE     = (244, 247, 245)
+COLOR_DIM       = (150, 166, 158)
 
-COLOR_FRAME      = (16, 58, 36)
-COLOR_GRID       = (255, 255, 255)
-COLOR_TUMAN_FG   = (255, 255, 255)
-COLOR_TUMAN_LBL  = (218, 172, 68)
+COLOR_COLHDR_BG = (18, 31, 26)
+COLOR_ROW_A     = (24, 38, 32)        # juft satr
+COLOR_ROW_B     = (29, 45, 38)        # toq satr (alternating)
+COLOR_SEP       = (255, 255, 255, 18) # hairline
+COLOR_GOLD_SEP  = (214, 176, 98, 90)
+COLOR_MASJID_BG = (43, 37, 20)        # oltin-tint sub-kart
+COLOR_BORDER    = (255, 255, 255, 34)
 
-COLOR_TIME_FG    = (255, 255, 255)
-COLOR_SUB_FG     = (255, 250, 238)
-COLOR_NAME_FG    = (255, 255, 255)
-
-COLOR_MASJID_HDR = (172, 108, 22)
-COLOR_MASJID_FG  = (255, 255, 255)
-
-COLOR_DATE_L     = (155, 20, 28)
-COLOR_DATE_R     = (198, 50, 60)
-COLOR_DATE_FG    = (255, 248, 215)
-
-COLOR_FOOTER_FG  = (88, 82, 70)
-COLOR_TEST_FG    = (185, 32, 42)
+COLOR_DATE_FG   = (26, 40, 30)        # pill ichidagi to'q matn
+COLOR_FOOTER_FG = (132, 146, 138)
+COLOR_TEST_FG   = (235, 96, 104)
 
 EMPTY_MARK = "—"
 
@@ -196,58 +154,65 @@ def _vgrad(
     c_top: tuple[int, int, int],
     c_bot: tuple[int, int, int],
 ) -> None:
-    """Vertical gradient (top→bottom) directly onto img."""
+    """Vertical gradient (top→bottom) to'g'ridan img ustiga."""
     x1, y1, x2, y2 = xy
     h = y2 - y1
     if h <= 0:
         return
-    d = ImageDraw.Draw(img)
+    band = Image.new("RGB", (1, h))
     for i in range(h):
         t = i / max(h - 1, 1)
-        color = (
+        band.putpixel((0, i), (
             int(c_top[0] + (c_bot[0] - c_top[0]) * t),
             int(c_top[1] + (c_bot[1] - c_top[1]) * t),
             int(c_top[2] + (c_bot[2] - c_top[2]) * t),
-            255,
-        )
-        d.line((x1, y1 + i, x2, y1 + i), fill=color)
+        ))
+    img.paste(band.resize((x2 - x1, h)), (x1, y1))
 
 
-def _hgrad_rounded(
-    img: Image.Image,
-    xy: tuple[int, int, int, int],
-    c_l: tuple[int, int, int],
-    c_r: tuple[int, int, int],
-    radius: int = 10,
-) -> None:
-    """Horizontal gradient with rounded corners composited onto img."""
-    x1, y1, x2, y2 = xy
-    w, h = x2 - x1, y2 - y1
-    if w <= 0 or h <= 0:
-        return
-    band = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    bd = ImageDraw.Draw(band)
+def _hgrad(
+    w: int, h: int,
+    c_l: tuple[int, int, int], c_r: tuple[int, int, int],
+) -> Image.Image:
+    band = Image.new("RGB", (w, 1))
     for col in range(w):
         t = col / max(w - 1, 1)
-        color = (
+        band.putpixel((col, 0), (
             int(c_l[0] + (c_r[0] - c_l[0]) * t),
             int(c_l[1] + (c_r[1] - c_l[1]) * t),
             int(c_l[2] + (c_r[2] - c_l[2]) * t),
-            255,
-        )
-        bd.line((col, 0, col, h - 1), fill=color)
-    mask = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, w - 1, h - 1), radius=radius, fill=255)
-    band.putalpha(mask)
-    img.alpha_composite(band, (x1, y1))
+        ))
+    return band.resize((w, h)).convert("RGBA")
 
 
-def _lighten(c: tuple[int, int, int], f: float) -> tuple[int, int, int]:
-    return (
-        min(255, int(c[0] + (255 - c[0]) * f)),
-        min(255, int(c[1] + (255 - c[1]) * f)),
-        min(255, int(c[2] + (255 - c[2]) * f)),
-    )
+def _radial_glow(diam: int, color: tuple[int, int, int], max_alpha: int) -> Image.Image:
+    grad = Image.radial_gradient("L").resize((diam, diam))   # 0 markaz → 255 chet
+    alpha = ImageOps.invert(grad).point(lambda v: int((v / 255) * max_alpha))
+    layer = Image.new("RGBA", (diam, diam), (*color, 0))
+    layer.putalpha(alpha)
+    return layer
+
+
+def _rounded_mask(size: tuple[int, int], radius: int) -> Image.Image:
+    mask = Image.new("L", size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size[0], size[1]), radius=radius, fill=255)
+    return mask
+
+
+def _text_tracked(
+    d: ImageDraw.ImageDraw, xy: tuple[int, int], text: str,
+    font: ImageFont.FreeTypeFont, fill, *, tracking: int = 0, anchor: str = "mm",
+) -> None:
+    """Harf oralig'i (letter-spacing) bilan markazga joylab yozadi."""
+    if tracking == 0:
+        d.text(xy, text, font=font, fill=fill, anchor=anchor)
+        return
+    widths = [d.textlength(ch, font=font) for ch in text]
+    total = sum(widths) + tracking * (len(text) - 1)
+    x = xy[0] - total / 2
+    for ch, w in zip(text, widths, strict=True):
+        d.text((x, xy[1]), ch, font=font, fill=fill, anchor="lm")
+        x += w + tracking
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -260,222 +225,206 @@ def render_qashqadaryo_table(
     test_mode: bool = False,
     out_filename: str | None = None,
 ) -> Path:
-    """Premium dizayn: gradient header, oltin aksentlar, alternating rows. 2x HD."""
+    """iOS islomiy premium dizayn: to'q fon, grouped table karti, oltin aksent. 2x HD."""
     settings = get_settings()
     S = SCALE
-    W, H = DEFAULT_SIZE
 
-    img = Image.new("RGBA", (W, H), COLOR_PAGE_BG + (255,))
+    # ── Layout konstantalari (dizayn birligi, keyin × S) ──────────────────
+    OUT       = 40 * S
+    DECOR_TOP = 34 * S
+    DECOR_H   = 168 * S
+    TITLE_Y   = 248 * S
+    SUB_Y     = 304 * S
+    PILL_Y1   = 346 * S
+    PILL_H    = 68 * S
+    CARD_TOP  = 466 * S
+    COLHDR_H  = 132 * S
+    ROW_H     = 80 * S
+    MASJID_H  = 176 * S
+    RADIUS    = 40 * S
 
-    # ── Fonts (all sizes × S) ─────────────────────────────────────────────
-    f_hdr_sub  = _load_font(FONT_FILES["title"], 29 * S);  _try_variant(f_hdr_sub,  "SemiBold")
-    f_hdr_main = _load_font(FONT_FILES["title"], 56 * S);  _try_variant(f_hdr_main, "Bold")
-    f_hdr_sub2 = _load_font(FONT_FILES["title"], 31 * S);  _try_variant(f_hdr_sub2, "Bold")
+    n_rows = len(TUMAN_ORDER_CYR)
+    card_h = COLHDR_H + n_rows * ROW_H + MASJID_H
+    card_bottom = CARD_TOP + card_h
+    foot_y = card_bottom + 46 * S
 
-    f_col_name  = _load_font(FONT_FILES["title"], 24 * S); _try_variant(f_col_name,  "Bold")
-    f_col_sub   = _load_font(FONT_FILES["row"],   19 * S); _try_variant(f_col_sub,   "Bold")
-    f_tuman_lbl = _load_font(FONT_FILES["title"], 24 * S); _try_variant(f_tuman_lbl, "Bold")
-    f_tuman_nm  = _load_font(FONT_FILES["row"],   22 * S); _try_variant(f_tuman_nm,  "Bold")
-    f_time      = _load_font(FONT_FILES["time"],  38 * S); _try_variant(f_time,      "Bold")
-    f_masjid_h  = _load_font(FONT_FILES["row"],   22 * S); _try_variant(f_masjid_h,  "Bold")
-    f_masjid_t  = _load_font(FONT_FILES["time"],  30 * S); _try_variant(f_masjid_t,  "Bold")
-    f_date      = _load_font(FONT_FILES["title"], 46 * S); _try_variant(f_date,      "Bold")
-    f_footer    = _load_font(FONT_FILES["row"],   21 * S); _try_variant(f_footer,    "SemiBold")
-    f_test      = _load_font(FONT_FILES["row"],   22 * S); _try_variant(f_test,      "Bold")
+    W = 1080 * S
+    H = foot_y + 110 * S
 
-    # ── HEADER BANNER ─────────────────────────────────────────────────────
-    HDR_H = 278 * S
-    _vgrad(img, (0, 0, W, HDR_H), COLOR_HDR_TOP, COLOR_HDR_BOT)
+    # ── Canvas + fon ──────────────────────────────────────────────────────
+    img = Image.new("RGBA", (W, H), (*COLOR_BG_BOT, 255))
+    _vgrad(img, (0, 0, W, H), COLOR_BG_TOP, COLOR_BG_BOT)
+
+    # Header ortida yumshoq nur
+    glow = _radial_glow(900 * S, COLOR_GLOW, 110)
+    img.alpha_composite(glow, (W // 2 - glow.size[0] // 2, -260 * S))
+
+    # ── Masjidul Aqso motivi — sarlavha tepasida, alohida dekor zona ─────
+    decor_w = int(W * 0.58)
+    decor = aqsa_backdrop(width=decor_w, height=DECOR_H, color=COLOR_GOLD, alpha=55)
+    img.alpha_composite(decor, (W // 2 - decor_w // 2, DECOR_TOP))
+
+    # ── Premium ikki qavat oltin hoshiya ──────────────────────────────────
+    frame = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    fd = ImageDraw.Draw(frame)
+    fd.rounded_rectangle(
+        (16 * S, 16 * S, W - 16 * S, H - 16 * S),
+        radius=34 * S, outline=(*COLOR_GOLD, 100), width=2 * S,
+    )
+    fd.rounded_rectangle(
+        (25 * S, 25 * S, W - 25 * S, H - 25 * S),
+        radius=30 * S, outline=(*COLOR_GOLD, 45), width=1 * S,
+    )
+    img.alpha_composite(frame)
 
     d = ImageDraw.Draw(img)
-    d.line((60*S, 15*S, W - 60*S, 15*S), fill=COLOR_HDR_GOLD, width=2*S)
 
-    kaaba = _load_emoji("kaaba.png", 92 * S)
-    if kaaba:
-        img.paste(kaaba, (W // 2 - kaaba.size[0] // 2, 24 * S), kaaba)
-        d = ImageDraw.Draw(img)
+    # ── Fonts ─────────────────────────────────────────────────────────────
+    f_title   = _load_font(FONT_FILES["title"], 50 * S); _try_variant(f_title, "Bold")
+    f_sub     = _load_font(FONT_FILES["title"], 26 * S); _try_variant(f_sub, "Medium")
+    f_date    = _load_font(FONT_FILES["title"], 29 * S); _try_variant(f_date, "Bold")
+    f_col     = _load_font(FONT_FILES["title"], 22 * S); _try_variant(f_col, "Bold")
+    f_thdr    = _load_font(FONT_FILES["title"], 21 * S); _try_variant(f_thdr, "Bold")
+    f_tuman   = _load_font(FONT_FILES["row"],   21 * S); _try_variant(f_tuman, "Bold")
+    f_time    = _load_font(FONT_FILES["time"],  33 * S); _try_variant(f_time, "Bold")
+    f_mlbl    = _load_font(FONT_FILES["row"],   19 * S); _try_variant(f_mlbl, "Bold")
+    f_mtime   = _load_font(FONT_FILES["time"],  31 * S); _try_variant(f_mtime, "Bold")
+    f_footer  = _load_font(FONT_FILES["row"],   20 * S); _try_variant(f_footer, "Medium")
+    f_test    = _load_font(FONT_FILES["row"],   20 * S); _try_variant(f_test, "Bold")
 
-    d.text((W // 2, 148 * S), "ҚАШҚАДАРЁ ВИЛОЯТИ БАРЧА ҲУДУДИ УЧУН",
-           font=f_hdr_sub, fill=COLOR_HDR_GOLD, anchor="mm")
-    d.text((W // 2, 200 * S), "«КУНЛИК НАМОЗ ВАҚТЛАРИ»",
-           font=f_hdr_main, fill=COLOR_HDR_WHITE, anchor="mm")
-    d.text((W // 2, 250 * S), "РЎЙХАТИ",
-           font=f_hdr_sub2, fill=COLOR_HDR_GOLD, anchor="mm")
-    d.line((60*S, HDR_H - 14*S, W - 60*S, HDR_H - 14*S), fill=COLOR_HDR_GOLD, width=2*S)
-
-    # ── TABLE LAYOUT ──────────────────────────────────────────────────────
-    table_top    = HDR_H + 18 * S
-    table_left   = _M
-    tuman_col_w  = 175 * S
-    prayer_col_w = (W - 2 * _M - tuman_col_w) // 6
-    table_right  = table_left + tuman_col_w + 6 * prayer_col_w
-
-    HDR_ROW_H    = 260 * S
-    DATA_ROW_H   = 78 * S
-    MASJID_ROW_H = 120 * S
-    n_rows = len(TUMAN_ORDER_CYR)
-
-    table_bottom = table_top + HDR_ROW_H + n_rows * DATA_ROW_H + MASJID_ROW_H
-
-    # Outer dark green frame
-    d.rectangle((table_left, table_top, table_right, table_bottom), fill=COLOR_FRAME)
-
-    # Gold vertical separator: tuman ↔ prayer columns
-    sep_x = table_left + tuman_col_w
-    d.line((sep_x, table_top, sep_x, table_bottom), fill=COLOR_HDR_GOLD, width=2*S)
-
-    # ── COLUMN HEADERS ────────────────────────────────────────────────────
-    hdr_y1 = table_top
-    hdr_y2 = table_top + HDR_ROW_H
-
-    # Tuman column header
-    pin = _load_emoji("round_pushpin.png", 65 * S)
-    if pin:
-        img.paste(pin, (table_left + tuman_col_w // 2 - pin.size[0] // 2, hdr_y1 + 30*S), pin)
-        d = ImageDraw.Draw(img)
-    d.text(
-        (table_left + tuman_col_w // 2, hdr_y2 - 30*S),
-        "ТУМАНЛАР",
-        font=f_tuman_lbl, fill=COLOR_TUMAN_LBL, anchor="mm",
+    # ── HEADER ────────────────────────────────────────────────────────────
+    _text_tracked(
+        d, (W // 2, TITLE_Y), "ҚАШҚАДАРЁ ВИЛОЯТИ",
+        f_title, COLOR_GOLD, tracking=4 * S, anchor="mm",
+    )
+    _text_tracked(
+        d, (W // 2, SUB_Y), "Кунлик намоз вақтлари",
+        f_sub, COLOR_DIM, tracking=2 * S, anchor="mm",
     )
 
-    # Prayer column headers
+    # Sana — iOS pill (oltin gradient, to'q matn)
+    cyr_month = CYR_MONTHS.get(target_date.month, str(target_date.month))
+    date_text = f"{target_date.day}-{cyr_month} {target_date.year}"
+    dt_w = d.textlength(date_text, font=f_date)
+    pill_w = int(dt_w + 64 * S)
+    pill_x1 = W // 2 - pill_w // 2
+    pill = _hgrad(pill_w, PILL_H, COLOR_GOLD, COLOR_GOLD_DK)
+    pill.putalpha(_rounded_mask((pill_w, PILL_H), PILL_H // 2))
+    img.alpha_composite(pill, (pill_x1, PILL_Y1))
+    d = ImageDraw.Draw(img)
+    d.text((W // 2, PILL_Y1 + PILL_H // 2), date_text,
+           font=f_date, fill=COLOR_DATE_FG, anchor="mm")
+
+    # ── TABLE CARD (alohida layerda, keyin yumaloq mask) ──────────────────
+    card_x1 = OUT
+    card_x2 = W - OUT
+    card_w = card_x2 - card_x1
+
+    prayer_w = (card_w - 164 * S) // 6
+    tuman_w = card_w - 6 * prayer_w
+
+    layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+
+    # Surface'lar: colhdr, alternating rows, masjid
+    ld.rectangle((0, 0, card_w, COLHDR_H), fill=(*COLOR_COLHDR_BG, 255))
+    for r in range(n_rows):
+        ry1 = COLHDR_H + r * ROW_H
+        fill = COLOR_ROW_B if r % 2 else COLOR_ROW_A
+        ld.rectangle((0, ry1, card_w, ry1 + ROW_H), fill=(*fill, 255))
+    msj_y1 = COLHDR_H + n_rows * ROW_H
+    ld.rectangle((0, msj_y1, card_w, card_h), fill=(*COLOR_MASJID_BG, 255))
+
+    # ── Column headers ────────────────────────────────────────────────────
+    pin = _load_emoji("round_pushpin.png", 52 * S)
+    if pin:
+        layer.paste(pin, (tuman_w // 2 - pin.size[0] // 2, 24 * S), pin)
+        ld = ImageDraw.Draw(layer)
+    ld.text((tuman_w // 2, COLHDR_H - 30 * S), "ТУМАНЛАР",
+            font=f_thdr, fill=COLOR_GOLD, anchor="mm")
+
     for i, col in enumerate(PRAYER_COLUMNS):
-        cx1 = table_left + tuman_col_w + i * prayer_col_w
-        cx2 = cx1 + prayer_col_w
-        cx_mid = (cx1 + cx2) // 2
+        cx1 = tuman_w + i * prayer_w
+        cx_mid = cx1 + prayer_w // 2
+        accent = col["accent"]
 
-        _vgrad(img, (cx1, hdr_y1, cx2, hdr_y2), col["color_dark"], col["color"])
-        d = ImageDraw.Draw(img)
-
-        icon = _load_emoji(col["icon"], 96 * S)
+        icon = _load_emoji(col["icon"], 70 * S)
         if icon:
-            img.paste(icon, (cx_mid - icon.size[0] // 2, hdr_y1 + 12*S), icon)
-            d = ImageDraw.Draw(img)
+            layer.paste(icon, (cx_mid - icon.size[0] // 2, 16 * S), icon)
+            ld = ImageDraw.Draw(layer)
+        ld.text((cx_mid, COLHDR_H - 50 * S), col["cyr"],
+                font=f_col, fill=accent, anchor="mm")
+        # Nozik aksent chizig'i (underline)
+        uw = int(prayer_w * 0.34)
+        ld.line((cx_mid - uw // 2, COLHDR_H - 22 * S, cx_mid + uw // 2, COLHDR_H - 22 * S),
+                fill=(*accent, 255), width=3 * S)
 
-        for li, line in enumerate(col["subtitle"].split("\n")):
-            d.text(
-                (cx_mid, hdr_y1 + 128*S + li * 24*S),
-                line, font=f_col_sub, fill=COLOR_SUB_FG, anchor="mm",
-            )
-
-        # Prayer name bold at bottom of header
-        d.text(
-            (cx_mid, hdr_y2 - 24*S),
-            col["cyr"], font=f_col_name, fill=COLOR_NAME_FG, anchor="mm",
-        )
-
-    # Header / data separator
-    d.line((table_left, hdr_y2, table_right, hdr_y2), fill=COLOR_GRID, width=3*S)
-
-    # ── DATA ROWS ─────────────────────────────────────────────────────────
+    # ── Data rows ─────────────────────────────────────────────────────────
     for r, (lotin, cyr) in enumerate(TUMAN_ORDER_CYR):
-        ry1 = hdr_y2 + r * DATA_ROW_H
-        ry2 = ry1 + DATA_ROW_H
+        ry1 = COLHDR_H + r * ROW_H
+        ry_mid = ry1 + ROW_H // 2
         row_data = _normalize_row(regions_data.get(lotin))
-        alt = r % 2 == 1
-
-        d.text(
-            (table_left + tuman_col_w // 2, (ry1 + ry2) // 2),
-            cyr, font=f_tuman_nm, fill=COLOR_TUMAN_FG, anchor="mm",
-        )
-
         has_data = any(row_data.get(col["key"]) for col in PRAYER_COLUMNS)
 
+        ld.text((tuman_w // 2, ry_mid), cyr,
+                font=f_tuman, fill=COLOR_WHITE, anchor="mm")
+
         for i, col in enumerate(PRAYER_COLUMNS):
-            cx1 = table_left + tuman_col_w + i * prayer_col_w
-            cx2 = cx1 + prayer_col_w
-            cell_color = _lighten(col["color"], 0.12) if alt else col["color"]
-            d.rectangle((cx1, ry1, cx2, ry2), fill=cell_color)
+            cx_mid = tuman_w + i * prayer_w + prayer_w // 2
             t = row_data.get(col["key"]) or ""
             if t:
-                d.text(
-                    ((cx1 + cx2) // 2, (ry1 + ry2) // 2),
-                    t, font=f_time, fill=COLOR_TIME_FG, anchor="mm",
-                )
+                ld.text((cx_mid, ry_mid), t, font=f_time, fill=COLOR_WHITE, anchor="mm")
             elif not has_data:
-                d.text(
-                    ((cx1 + cx2) // 2, (ry1 + ry2) // 2),
-                    "—", font=f_time, fill=(255, 255, 255, 120), anchor="mm",
-                )
+                ld.text((cx_mid, ry_mid), EMPTY_MARK,
+                        font=f_time, fill=(*COLOR_DIM, 160), anchor="mm")
 
+        # Hairline (satrlar orasida)
         if r < n_rows - 1:
-            d.line((table_left, ry2, table_right, ry2), fill=COLOR_GRID, width=1*S)
+            ld.line((24 * S, ry1 + ROW_H, card_w - 24 * S, ry1 + ROW_H),
+                    fill=COLOR_SEP, width=1 * S)
 
-    # ── MASJID ROW ────────────────────────────────────────────────────────
-    msj_y1 = hdr_y2 + n_rows * DATA_ROW_H
-    msj_y2 = msj_y1 + MASJID_ROW_H
-    mosq   = _normalize_row(masjid_times or {})
+    # ── Masjid sub-card ───────────────────────────────────────────────────
+    mosq = _normalize_row(masjid_times or {})
+    ld.line((0, msj_y1, card_w, msj_y1), fill=COLOR_GOLD_SEP, width=2 * S)
 
-    d.line((table_left, msj_y1, table_right, msj_y1), fill=COLOR_GRID, width=3*S)
-
-    SUB1_H  = 48 * S
-    sub1_y2 = msj_y1 + SUB1_H
-
-    for idx, line in enumerate(("МАСЖИДЛАРДА", "ўқиладиган", "вақтлар")):
-        d.text(
-            (table_left + tuman_col_w // 2, msj_y1 + 26*S + idx * 32*S),
-            line, font=f_masjid_h, fill=COLOR_MASJID_FG, anchor="mm",
-        )
+    msj_mid = msj_y1 + MASJID_H // 2
+    for idx, line in enumerate(("МАСЖИД", "вақтлари")):
+        ld.text((tuman_w // 2, msj_mid - 16 * S + idx * 36 * S),
+                line, font=f_mlbl, fill=COLOR_GOLD, anchor="mm")
 
     for i, col in enumerate(PRAYER_COLUMNS):
-        cx1 = table_left + tuman_col_w + i * prayer_col_w
-        cx2 = cx1 + prayer_col_w
-        cx_mid = (cx1 + cx2) // 2
-
+        cx_mid = tuman_w + i * prayer_w + prayer_w // 2
         if col["key"] == "Quyosh":
-            d.rectangle((cx1, msj_y1, cx2, msj_y2), fill=COLOR_FRAME)
+            ld.text((cx_mid, msj_mid), EMPTY_MARK,
+                    font=f_mtime, fill=(*COLOR_GOLD_DK, 150), anchor="mm")
             continue
-
-        d.rectangle((cx1, msj_y1, cx2, sub1_y2), fill=COLOR_MASJID_HDR)
-        d.text(
-            (cx_mid, msj_y1 + SUB1_H // 2),
-            col["cyr"], font=f_masjid_h, fill=COLOR_MASJID_FG, anchor="mm",
-        )
         t = mosq.get(col["key"]) or EMPTY_MARK
-        d.text(
-            (cx_mid, sub1_y2 + (MASJID_ROW_H - SUB1_H) // 2),
-            t, font=f_masjid_t, fill=COLOR_MASJID_FG, anchor="mm",
-        )
+        ld.text((cx_mid, msj_mid), t, font=f_mtime, fill=COLOR_GOLD, anchor="mm")
 
-    # ── DATE BANNER (gradient, rounded) ───────────────────────────────────
-    DATE_H  = 86 * S
-    date_y1 = table_bottom + 18 * S
-    date_y2 = date_y1 + DATE_H
+    # Tuman ↔ prayer ustunlari orasida nozik oltin ajratuvchi
+    ld.line((tuman_w, 0, tuman_w, card_h), fill=COLOR_GOLD_SEP, width=2 * S)
+    # Colhdr ↔ data ajratuvchi
+    ld.line((0, COLHDR_H, card_w, COLHDR_H), fill=(255, 255, 255, 40), width=2 * S)
 
-    _hgrad_rounded(img, (table_left, date_y1, table_right, date_y2),
-                   COLOR_DATE_L, COLOR_DATE_R, radius=10*S)
+    # Yumaloq mask + asosiy rasmga joylash (kart butun yuzasi to'ldirilgan)
+    layer.putalpha(_rounded_mask((card_w, card_h), RADIUS))
+    img.alpha_composite(layer, (card_x1, CARD_TOP))
+
+    # Nozik hairline ramka
     d = ImageDraw.Draw(img)
-
-    cyr_month = CYR_MONTHS.get(target_date.month, str(target_date.month))
-    d.text(
-        (table_left + (table_right - table_left) // 2, date_y1 + DATE_H // 2),
-        f"{target_date.day}-{cyr_month} {target_date.year} ЙИЛ УЧУН",
-        font=f_date, fill=COLOR_DATE_FG, anchor="mm",
+    d.rounded_rectangle(
+        (card_x1, CARD_TOP, card_x2, card_bottom),
+        radius=RADIUS, outline=COLOR_BORDER, width=1 * S,
     )
 
     # ── FOOTER ────────────────────────────────────────────────────────────
-    foot_y = date_y2 + 22 * S
-    d.line((table_left, foot_y, table_right, foot_y), fill=COLOR_HDR_GOLD, width=2*S)
-    foot_y += 14 * S
-
-    for idx, line in enumerate((
-        "Услуб: Ўзбекистон мусулмонлари идораси услуби бўйича",
-        "кўрсатилган.",
-    )):
-        d.text(
-            (table_left, foot_y + idx * 26*S),
-            line, font=f_footer, fill=COLOR_FOOTER_FG, anchor="lm",
-        )
-
+    d.text((W // 2, foot_y), "Ўзбекистон мусулмонлари идораси услуби бўйича",
+           font=f_footer, fill=COLOR_FOOTER_FG, anchor="mm")
     if test_mode:
-        d.text(
-            (table_right, foot_y + 26*S),
-            "ТЕСТ РЕЖИМДА",
-            font=f_test, fill=COLOR_TEST_FG, anchor="rm",
-        )
+        d.text((W // 2, foot_y + 40 * S), "ТЕСТ РЕЖИМДА",
+               font=f_test, fill=COLOR_TEST_FG, anchor="mm")
 
-    # ── Save — lossless PNG, compress_level=1 (fastest, largest, best) ────
+    # ── Save — lossless PNG ───────────────────────────────────────────────
     if out_filename:
         out_path = settings.images_dir / out_filename
     else:

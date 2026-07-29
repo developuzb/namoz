@@ -50,6 +50,41 @@ def clean_hhmm(value: str | None) -> str | None:
     return f"{h:02d}:{m:02d}"
 
 
+def parse_prayer_times_block(text: str) -> dict[str, str]:
+    """Ko'p qatorli matndan namoz nomi + `HH:MM` juftlarini ajratadi.
+
+    Har qatordan bitta namoz nomi (lotin/kirill taxallus) va bitta vaqtni
+    topadi; faqat farz namozlari qaytariladi. Emoji, tinish belgilari va
+    ortiqcha so'zlar e'tiborga olinmaydi.
+
+    Misol kirish::
+
+        🕋 Бомдод 04:55;
+        🕋 Пешин 13:00;
+
+    Natija::
+
+        {"Bomdod": "04:55", "Peshin": "13:00"}
+    """
+    from app.core.constants import PRAYER_NAME_ALIASES
+
+    result: dict[str, str] = {}
+    for line in text.splitlines():
+        prayer: str | None = None
+        for token in re.findall(r"[^\W\d_]+", line.lower(), re.UNICODE):
+            canon = PRAYER_NAME_ALIASES.get(token)
+            if canon:
+                prayer = canon
+                break
+        if prayer is None:
+            continue
+        m = re.search(r"\d{1,2}\s*[:.\-]\s*\d{2}", line)
+        cleaned = clean_hhmm(m.group(0)) if m else None
+        if cleaned:
+            result[prayer] = cleaned
+    return result
+
+
 def parse_hhmm_to_dt(
     value: str | None,
     base_date: date,

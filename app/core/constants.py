@@ -9,6 +9,30 @@ FARZ_PRAYERS: tuple[str, ...] = ("Bomdod", "Peshin", "Asr", "Shom", "Xufton")
 #: Vaqtlar jadvalida ko'rinadigan barcha namozlar
 ALL_PRAYERS: tuple[str, ...] = ("Bomdod", "Quyosh", "Peshin", "Asr", "Shom", "Xufton")
 
+#: Namoz nomi taxalluslari (lotin + kirill + boshqa nomlar) → kanonik nom.
+#: Kalitlar kichik harflarda. Ko'p qatorli xabardan vaqtlarni ajratishda
+#: ishlatiladi (masalan admin "Бомдод 04:55" deb yuborsa → "Bomdod").
+PRAYER_NAME_ALIASES: dict[str, str] = {
+    # Bomdod
+    "bomdod": "Bomdod", "бомдод": "Bomdod",
+    "tong": "Bomdod", "тонг": "Bomdod",
+    "saharlik": "Bomdod", "саҳарлик": "Bomdod", "сахарлик": "Bomdod",
+    "fajr": "Bomdod", "фажр": "Bomdod",
+    # Peshin
+    "peshin": "Peshin", "пешин": "Peshin", "пешен": "Peshin",
+    "zuhr": "Peshin", "зухр": "Peshin",
+    # Asr
+    "asr": "Asr", "аср": "Asr",
+    # Shom
+    "shom": "Shom", "шом": "Shom",
+    "iftor": "Shom", "ифтор": "Shom",
+    "magrib": "Shom", "мағриб": "Shom", "магриб": "Shom",
+    # Xufton
+    "xufton": "Xufton", "хуфтон": "Xufton", "хуфтан": "Xufton",
+    "hufton": "Xufton", "ҳуфтон": "Xufton",
+    "isha": "Xufton", "иша": "Xufton",
+}
+
 #: Nafl namozlari
 NAFL_PRAYERS: tuple[str, ...] = ("Tahajjud", "Ishroq", "Zuho", "Avvobiyn")
 

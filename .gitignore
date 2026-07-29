@@ -36,11 +36,22 @@ env/
 .claude/
 
 # Project-specific
+data/google_sa.json
+data/*.json
 data/bot.db
 data/bot.db-journal
 data/images/*.png
 logs/*.log
 logs/*.log.*
+
+# DB backups (real foydalanuvchi ma'lumotlari — repoga qo'shilmasin)
+backups/
+
+# Katta binariylar (cloudflared, ngrok va h.k. — repoga qo'shilmasin)
+.bin/
+
+# Windows yorliqlar
+*.lnk
 
 # Don't ignore directories themselves
 !data/.gitkeep
