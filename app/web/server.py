@@ -1,13 +1,37 @@
 """aiohttp web server — bot polling bilan bir loop'da ishlaydi."""
 from __future__ import annotations
 
-from pathlib import Path
-
 from aiohttp import web
 
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.web.api import setup_api_routes
+
+
+def _cors_origin(request: web.Request) -> str:
+    """So'rov origin'iga qarab ruxsat etilgan CORS origin qiymatini qaytaradi."""
+    allowed = get_settings().cors_origins_list
+    origin = request.headers.get("Origin", "")
+    if allowed == ["*"]:
+        return origin or "*"
+    return origin if origin in allowed else allowed[0]
+
+
+@web.middleware
+async def cors_middleware(request: web.Request, handler) -> web.Response:
+    """CORS sarlavhalarini qo'shadi — frontend GitHub Pages'da bo'lgani uchun.
+
+    OPTIONS (preflight) so'rovlariga darhol 200 qaytaradi.
+    """
+    if request.method == "OPTIONS":
+        resp = web.Response(status=200)
+    else:
+        resp = await handler(request)
+    resp.headers["Access-Control-Allow-Origin"] = _cors_origin(request)
+    resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Telegram-Init-Data"
+    resp.headers["Vary"] = "Origin"
+    return resp
 
 
 async def serve_webapp_index(request: web.Request) -> web.Response:
@@ -22,7 +46,7 @@ async def serve_webapp_index(request: web.Request) -> web.Response:
 def create_web_app() -> web.Application:
     """aiohttp Application yasash — bot bilan asyncio loop baham."""
     settings = get_settings()
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
 
     # 1. API routelar
     setup_api_routes(app)

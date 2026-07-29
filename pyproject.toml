@@ -12,7 +12,8 @@ dependencies = [
     "aiogram>=3.13.1,<4.0",
     # DB
     "sqlalchemy[asyncio]>=2.0.36",
-    "aiosqlite>=0.20.0",
+    "aiosqlite>=0.20.0",          # lokal dev (SQLite)
+    "asyncpg>=0.30.0",            # production (Heroku Postgres)
     "alembic>=1.14.0",
     # Scheduler
     "apscheduler>=3.10.4,<4.0",

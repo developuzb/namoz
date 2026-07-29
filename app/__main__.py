@@ -44,9 +44,10 @@ async def main() -> None:
     scheduler.start()
     await bootstrap_jobs(scheduler, bot)
 
-    # Web server (Mini App backend) — port'da listen qiladi
+    # Web server (Mini App backend) — port'da listen qiladi.
+    # Heroku `$PORT` beradi; lokalda WEBAPP_PORT (default 8080).
     web_app = create_web_app()
-    web_runner = await run_web_server(web_app, settings.WEBAPP_PORT)
+    web_runner = await run_web_server(web_app, settings.web_port)
     if settings.WEBAPP_URL:
         logger.info("🚀 Mini App: {}", settings.WEBAPP_URL)
     else:

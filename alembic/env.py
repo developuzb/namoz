@@ -4,10 +4,11 @@ from __future__ import annotations
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 # ⚠️ MUHIM: barcha modellarni import qilish kerak,
 # aks holda Alembic ularni "ko'rmaydi"
@@ -67,10 +68,14 @@ def do_run_migrations(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     """Online rejim — async engine bilan."""
+    # Postgres (Heroku) uchun SSL connect_args — session.py bilan bir xil.
+    from app.db.session import _build_connect_args
+
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_build_connect_args(settings.DATABASE_URL),
     )
 
     async with connectable.connect() as connection:

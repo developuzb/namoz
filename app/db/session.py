@@ -19,6 +19,25 @@ _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
 
+def _build_connect_args(db_url: str) -> dict:
+    """Dialektga qarab connect_args tuzadi.
+
+    - SQLite: `check_same_thread=False` (async uchun).
+    - Postgres (Heroku): SSL majburiy. Heroku sertifikati self-signed
+      bo'lishi mumkin, shuning uchun tekshirmasdan SSL ishlatiladi.
+    """
+    if db_url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    if db_url.startswith("postgresql"):
+        import ssl
+
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return {"ssl": ctx}
+    return {}
+
+
 def get_engine() -> AsyncEngine:
     """Async SQLAlchemy engine ni qaytaradi (lazy init)."""
     global _engine
@@ -28,10 +47,7 @@ def get_engine() -> AsyncEngine:
             settings.DATABASE_URL,
             echo=settings.LOG_LEVEL == "DEBUG",
             pool_pre_ping=True,
-            # SQLite uchun maxsus
-            connect_args={"check_same_thread": False}
-            if settings.DATABASE_URL.startswith("sqlite")
-            else {},
+            connect_args=_build_connect_args(settings.DATABASE_URL),
         )
         logger.info("🔌 DB engine yaratildi: {}", _mask_db_url(settings.DATABASE_URL))
     return _engine

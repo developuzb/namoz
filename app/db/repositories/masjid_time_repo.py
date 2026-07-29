@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from app.core.constants import FARZ_PRAYERS
@@ -34,13 +35,18 @@ class MasjidTimeRepository(BaseRepository[MasjidTime]):
         """
         Vaqtni o'rnatish (mavjud bo'lsa yangilash, yo'q bo'lsa yaratish).
 
-        SQLite uchun ON CONFLICT DO UPDATE.
+        ON CONFLICT DO UPDATE — SQLite (lokal) va PostgreSQL (Heroku) ikkalasi
+        ham qo'llaydi; drayver dialektiga qarab to'g'ri `insert` tanlanadi.
         """
         if prayer not in FARZ_PRAYERS:
             raise ValueError(f"Faqat farz namozlari ruxsat etilgan: {FARZ_PRAYERS}")
 
+        from app.core.config import get_settings
+
+        insert = pg_insert if get_settings().is_postgres else sqlite_insert
+
         stmt = (
-            sqlite_insert(MasjidTime)
+            insert(MasjidTime)
             .values(
                 region_id=region_id,
                 prayer=prayer,

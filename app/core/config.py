@@ -1,6 +1,7 @@
 """Bot konfiguratsiyasi — .env fayldan o'qiladi."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -55,8 +56,12 @@ class Settings(BaseSettings):
     #: HTTPS URL — bo'sh bo'lsa WebApp tugmasi ko'rsatilmaydi.
     #: Local dev uchun: `ngrok http 8080` → https://xxx.ngrok-free.app
     WEBAPP_URL: str = Field(default="", description="Mini-app HTTPS URL")
-    #: aiohttp web server porti (lokal)
+    #: aiohttp web server porti (lokal). Heroku'da `$PORT` ustuvor (web_port).
     WEBAPP_PORT: int = Field(default=8080, ge=1, le=65535)
+    #: CORS ruxsat etilgan originlar (vergul bilan). Frontend GitHub Pages'da
+    #: bo'lgani uchun kerak. "*" — barchasiga ruxsat (initData HMAC baribir
+    #: himoya qiladi). Masalan: "https://developuzb.github.io"
+    WEBAPP_CORS_ORIGINS: str = Field(default="*")
 
     # ---------------- Qashqadaryo kunlik plakat ----------------
     #: Plakat avtomatik yuboriladigan chat (kanal/guruh) ID.
@@ -98,6 +103,30 @@ class Settings(BaseSettings):
             raise ValueError(f"LOG_LEVEL noto'g'ri: {v}")
         return v
 
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        """Heroku/boshqa provayder URL'ini SQLAlchemy async formatiga keltiradi.
+
+        Heroku Postgres `postgres://...` beradi — SQLAlchemy buni qabul
+        qilmaydi va async uchun `asyncpg` drayveri kerak. Shuning uchun:
+          postgres://          -> postgresql+asyncpg://
+          postgresql://        -> postgresql+asyncpg://
+        SQLite va allaqachon to'g'ri URL'lar o'zgarishsiz qoladi.
+        """
+        v = v.strip()
+        if v.startswith("postgres://"):
+            v = "postgresql+asyncpg://" + v[len("postgres://"):]
+        elif v.startswith("postgresql://"):
+            v = "postgresql+asyncpg://" + v[len("postgresql://"):]
+        # asyncpg `sslmode` query paramni tushunmaydi — SSL connect_args orqali
+        # beriladi (session.py), shuning uchun URL'dan olib tashlaymiz.
+        if v.startswith("postgresql+asyncpg://") and "sslmode=" in v:
+            base, _, query = v.partition("?")
+            params = [p for p in query.split("&") if not p.startswith("sslmode=")]
+            v = base + ("?" + "&".join(params) if params else "")
+        return v
+
     # =================== Computed properties ===================
 
     @property
@@ -127,6 +156,26 @@ class Settings(BaseSettings):
     def namoz_chat_id(self) -> int | None:
         """0 — o'chiq."""
         return self.NAMOZ_CHAT_ID or None
+
+    @property
+    def web_port(self) -> int:
+        """Web server porti — Heroku `$PORT` beradi, aks holda WEBAPP_PORT."""
+        env_port = os.environ.get("PORT")
+        if env_port and env_port.isdigit():
+            return int(env_port)
+        return self.WEBAPP_PORT
+
+    @property
+    def is_postgres(self) -> bool:
+        return self.DATABASE_URL.startswith("postgresql")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """WEBAPP_CORS_ORIGINS ni ro'yxatga aylantiradi."""
+        raw = self.WEBAPP_CORS_ORIGINS.strip()
+        if raw in ("", "*"):
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
     @property
     def base_dir(self) -> Path:
