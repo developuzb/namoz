@@ -9,4 +9,4 @@
 //  Frontend GitHub Pages'da, backend (API) esa Heroku'da bo'lgani
 //  uchun brauzer API'ni shu manzildan chaqiradi.
 // ═══════════════════════════════════════════════════════════════
-window.API_BASE = "https://YOUR-HEROKU-APP.herokuapp.com";
+window.API_BASE = "https://taqvimbot-uz-e4f34fcaaaa5.herokuapp.com";
