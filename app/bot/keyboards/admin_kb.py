@@ -229,6 +229,17 @@ def broadcast_preview_keyboard(
     return kb.as_markup()
 
 
+def broadcast_confirm_keyboard() -> InlineKeyboardMarkup:
+    """Broadcast yuborishni tasdiqlash (eski moslik uchun)."""
+    from app.bot.keyboards.callback_data import CB_BC_CANCEL, CB_BC_CONFIRM
+
+    kb = InlineKeyboardBuilder()
+    kb.button(text="✅ Hammaga yuborish", callback_data=CB_BC_CONFIRM)
+    kb.button(text="❌ Bekor qilish", callback_data=CB_BC_CANCEL)
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 __all__ = [
     "admin_flat_picker",
     "admin_tuman_picker",
@@ -245,4 +256,5 @@ __all__ = [
     "mt_tuman_picker",
     "mt_viloyat_picker",
 ]
+
 
