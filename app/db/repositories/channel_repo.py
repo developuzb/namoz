@@ -29,4 +29,11 @@ class ChannelRepository(BaseRepository[Channel]):
             .options(joinedload(Channel.region))
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())
+
+    async def list_all_with_region(self) -> list[Channel]:
+        """Barcha kanallarni hudud bilan birga yuklaydi."""
+        stmt = select(Channel).options(joinedload(Channel.region))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().unique().all())
+

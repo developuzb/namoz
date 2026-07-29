@@ -61,12 +61,7 @@ async def _show_channels_list(
     edit: bool = True,
 ) -> None:
     ch_repo = ChannelRepository(session)
-    channels = await ch_repo.list_all()
-    # region eager load — bittadan
-    rr = RegionRepository(session)
-    for ch in channels:
-        if ch.region is None and ch.region_id:
-            ch.region = await rr.get(ch.region_id)
+    channels = await ch_repo.list_all_with_region()
 
     if not channels:
         text = (
