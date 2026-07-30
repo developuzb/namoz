@@ -105,6 +105,26 @@ async def show_channels(
     await _show_channels_list(call, session)
 
 
+# =================== Top-level Commands ===================
+
+@router.message(Command("set_channel_info"), StateFilter("*"))
+@router.message(Command("set_descriptions"), StateFilter("*"))
+async def cmd_set_channel_info(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    """Buyruq orqali barcha kanallarga nom va tavsif (bio) o'rnatish."""
+    await state.clear()
+    await message.answer("⏳ <b>Barcha kanallarga professional nom va tavsif yozish boshlandi...</b>")
+    await _run_all_info(message, session)
+
+
+@router.message(Command("set_channel_photos"), StateFilter("*"))
+@router.message(Command("set_avatars"), StateFilter("*"))
+async def cmd_set_channel_photos(message: Message, session: AsyncSession, state: FSMContext) -> None:
+    """Buyruq orqali barcha kanallarga avatarlarni o'rnatish."""
+    await state.clear()
+    await message.answer("⏳ <b>Barcha kanallarga nomiga mos rasm tayyorlash va o'rnatish boshlandi...</b>")
+    await _run_all_avatars(message, session)
+
+
 # =================== Add flow ===================
 
 @router.callback_query(F.data == CB_CH_ADD)
@@ -740,14 +760,6 @@ async def set_all_avatars_callback(call: CallbackQuery, session: AsyncSession) -
     await _run_all_avatars(call.message, session)
 
 
-@router.message(Command("set_channel_photos"))
-@router.message(Command("set_avatars"))
-async def cmd_set_channel_photos(message: Message, session: AsyncSession) -> None:
-    """Buyruq orqali barcha kanallarga avatarlarni o'rnatish."""
-    await message.answer("⏳ <b>Barcha kanallarga nomiga mos rasm tayyorlash va o'rnatish boshlandi...</b>")
-    await _run_all_avatars(message, session)
-
-
 async def _run_all_avatars(target_message: Message, session: AsyncSession) -> None:
     """Barcha kanallarga rasmlarni avtomatik yasash va Telegram'ga yuklash."""
     from app.services.channel_avatar import update_channel_avatar
@@ -829,14 +841,6 @@ async def set_all_info_callback(call: CallbackQuery, session: AsyncSession) -> N
     """Barcha faol kanallarga nom va tavsif o'rnatadi."""
     await call.answer("⏳ Barcha kanallarga nom va tavsif yozish boshlandi...")
     await _run_all_info(call.message, session)
-
-
-@router.message(Command("set_channel_info"))
-@router.message(Command("set_descriptions"))
-async def cmd_set_channel_info(message: Message, session: AsyncSession) -> None:
-    """Buyruq orqali barcha kanallarga nom va tavsif (bio) o'rnatish."""
-    await message.answer("⏳ <b>Barcha kanallarga professional nom va tavsif yozish boshlandi...</b>")
-    await _run_all_info(message, session)
 
 
 async def _run_all_info(target_message: Message, session: AsyncSession) -> None:
