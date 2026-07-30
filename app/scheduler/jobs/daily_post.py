@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
+from pathlib import Path
 
 from aiogram import Bot
 from sqlalchemy import select
@@ -27,7 +28,11 @@ from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_session
 from app.services.registry import get_post_service
-from app.services.telegram_send import notify_admins, send_photo_safe
+from app.services.telegram_send import (
+    notify_admins,
+    send_document_safe,
+    send_photo_safe,
+)
 from app.utils.text_utils import escape_html
 
 #: Telegram'ga zaxira: yuborish orasida kichik pauza
@@ -123,6 +128,13 @@ async def run_daily_post(bot: Bot) -> None:
                 )
                 if ok:
                     sent_ok += 1
+                    # Maksimal sifat — siqilmagan HD nusxa (fayl sifatida)
+                    await send_document_safe(
+                        bot=bot,
+                        chat_id=ch.chat_id,
+                        file_path=str(bundle.image_path),
+                        filename=f"HD_{Path(bundle.image_path).name}",
+                    )
                 else:
                     sent_fail += 1
                 await asyncio.sleep(_SEND_DELAY)
@@ -143,6 +155,13 @@ async def run_daily_post(bot: Bot) -> None:
                 )
                 if ok:
                     sent_ok += 1
+                    # Maksimal sifat — siqilmagan HD nusxa (fayl sifatida)
+                    await send_document_safe(
+                        bot=bot,
+                        chat_id=gc.chat_id,
+                        file_path=str(bundle.image_path),
+                        filename=f"HD_{Path(bundle.image_path).name}",
+                    )
                 else:
                     sent_fail += 1
                 await asyncio.sleep(_SEND_DELAY)

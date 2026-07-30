@@ -14,7 +14,7 @@ import re
 from datetime import date
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from app.core.config import get_settings
 from app.core.logger import logger
@@ -57,37 +57,39 @@ CYR_MONTHS: dict[int, str] = {
     9: "СЕНТЯБР", 10: "ОКТЯБР", 11: "НОЯБР", 12: "ДЕКАБР",
 }
 
-# ── Prayer columns (iOS aksent ranglari, kun davriga mos) ──────────────────────
+# ── Prayer columns (iOS aksent — och fonda "accent_dk" ishlatiladi) ────────────
 PRAYER_COLUMNS: list[dict] = [
-    {"key": "Bomdod", "cyr": "БОМДОД", "accent": (96, 170, 255),  "icon": "cityscape_dusk.png"},
-    {"key": "Quyosh", "cyr": "ҚУЁШ",   "accent": (255, 201, 102), "icon": "sunrise.png"},
-    {"key": "Peshin", "cyr": "ПЕШИН",  "accent": (255, 128, 99),  "icon": "sun_face.png"},
-    {"key": "Asr",    "cyr": "АСР",    "accent": (255, 168, 82),  "icon": "sun_cloud.png"},
-    {"key": "Shom",   "cyr": "ШОМ",    "accent": (236, 124, 162), "icon": "sunset.png"},
-    {"key": "Xufton", "cyr": "ХУФТОН", "accent": (146, 138, 238), "icon": "moon.png"},
+    {"key": "Bomdod", "cyr": "БОМДОД", "accent": (96, 170, 255),  "accent_dk": (44, 104, 182), "icon": "cityscape_dusk.png"},
+    {"key": "Quyosh", "cyr": "ҚУЁШ",   "accent": (255, 201, 102), "accent_dk": (188, 138, 40), "icon": "sunrise.png"},
+    {"key": "Peshin", "cyr": "ПЕШИН",  "accent": (255, 128, 99),  "accent_dk": (196, 70, 50),  "icon": "sun_face.png"},
+    {"key": "Asr",    "cyr": "АСР",    "accent": (255, 168, 82),  "accent_dk": (188, 110, 32), "icon": "sun_cloud.png"},
+    {"key": "Shom",   "cyr": "ШОМ",    "accent": (236, 124, 162), "accent_dk": (170, 62, 104), "icon": "sunset.png"},
+    {"key": "Xufton", "cyr": "ХУФТОН", "accent": (146, 138, 238), "accent_dk": (82, 72, 178),  "icon": "moon.png"},
 ]
 
-# ── Colors ────────────────────────────────────────────────────────────────────
-COLOR_BG_TOP    = (13, 28, 23)        # chuqur yashil-charcoal
-COLOR_BG_BOT    = (7, 15, 12)
-COLOR_GLOW      = (42, 96, 66)        # header ortidagi yumshoq nur
+# ── Colors (kunduzgi / light) ──────────────────────────────────────────────────
+COLOR_BG_TOP    = (252, 250, 245)     # issiq oq (cream)
+COLOR_BG_BOT    = (236, 242, 236)     # och yashil-kul
+COLOR_GLOW      = (208, 224, 210)     # header ortida yumshoq nur
 
-COLOR_GOLD      = (214, 176, 98)
-COLOR_GOLD_DK   = (168, 132, 64)
-COLOR_WHITE     = (244, 247, 245)
-COLOR_DIM       = (150, 166, 158)
+COLOR_GOLD      = (176, 138, 58)      # to'q oltin (och fonda)
+COLOR_GOLD_DK   = (140, 106, 42)
+COLOR_WHITE     = (255, 255, 255)
+COLOR_INK       = (30, 48, 40)        # asosiy to'q matn
+COLOR_DIM       = (112, 126, 116)     # ikkilamchi
 
-COLOR_COLHDR_BG = (18, 31, 26)
-COLOR_ROW_A     = (24, 38, 32)        # juft satr
-COLOR_ROW_B     = (29, 45, 38)        # toq satr (alternating)
-COLOR_SEP       = (255, 255, 255, 18) # hairline
-COLOR_GOLD_SEP  = (214, 176, 98, 90)
-COLOR_MASJID_BG = (43, 37, 20)        # oltin-tint sub-kart
-COLOR_BORDER    = (255, 255, 255, 34)
+COLOR_COLHDR_BG = (236, 240, 233)     # och col-header
+COLOR_ROW_A     = (255, 255, 255)     # juft satr — oq
+COLOR_ROW_B     = (246, 249, 245)     # toq satr — juda och
+COLOR_SEP       = (22, 46, 34, 28)    # to'q hairline
+COLOR_GOLD_SEP  = (176, 138, 58, 95)
+COLOR_MASJID_BG = (250, 244, 229)     # issiq oltin-tint sub-kart
+COLOR_BORDER    = (22, 46, 34, 45)
 
-COLOR_DATE_FG   = (26, 40, 30)        # pill ichidagi to'q matn
-COLOR_FOOTER_FG = (132, 146, 138)
-COLOR_TEST_FG   = (235, 96, 104)
+COLOR_DATE_FG   = (255, 251, 244)     # oltin pill ichidagi och matn
+COLOR_FOOTER_FG = (120, 134, 124)
+COLOR_TEST_FG   = (200, 58, 66)
+COLOR_SHADOW    = (26, 46, 36)        # kart ostidagi yumshoq soya
 
 EMPTY_MARK = "—"
 
@@ -256,12 +258,12 @@ def render_qashqadaryo_table(
     _vgrad(img, (0, 0, W, H), COLOR_BG_TOP, COLOR_BG_BOT)
 
     # Header ortida yumshoq nur
-    glow = _radial_glow(900 * S, COLOR_GLOW, 110)
+    glow = _radial_glow(900 * S, COLOR_GLOW, 70)
     img.alpha_composite(glow, (W // 2 - glow.size[0] // 2, -260 * S))
 
     # ── Masjidul Aqso motivi — sarlavha tepasida, alohida dekor zona ─────
     decor_w = int(W * 0.58)
-    decor = aqsa_backdrop(width=decor_w, height=DECOR_H, color=COLOR_GOLD, alpha=55)
+    decor = aqsa_backdrop(width=decor_w, height=DECOR_H, color=COLOR_GOLD, alpha=80)
     img.alpha_composite(decor, (W // 2 - decor_w // 2, DECOR_TOP))
 
     # ── Premium ikki qavat oltin hoshiya ──────────────────────────────────
@@ -269,11 +271,11 @@ def render_qashqadaryo_table(
     fd = ImageDraw.Draw(frame)
     fd.rounded_rectangle(
         (16 * S, 16 * S, W - 16 * S, H - 16 * S),
-        radius=34 * S, outline=(*COLOR_GOLD, 100), width=2 * S,
+        radius=34 * S, outline=(*COLOR_GOLD, 150), width=2 * S,
     )
     fd.rounded_rectangle(
         (25 * S, 25 * S, W - 25 * S, H - 25 * S),
-        radius=30 * S, outline=(*COLOR_GOLD, 45), width=1 * S,
+        radius=30 * S, outline=(*COLOR_GOLD, 70), width=1 * S,
     )
     img.alpha_composite(frame)
 
@@ -346,18 +348,17 @@ def render_qashqadaryo_table(
     for i, col in enumerate(PRAYER_COLUMNS):
         cx1 = tuman_w + i * prayer_w
         cx_mid = cx1 + prayer_w // 2
-        accent = col["accent"]
-
+        accent_dk = col["accent_dk"]
         icon = _load_emoji(col["icon"], 70 * S)
         if icon:
             layer.paste(icon, (cx_mid - icon.size[0] // 2, 16 * S), icon)
             ld = ImageDraw.Draw(layer)
         ld.text((cx_mid, COLHDR_H - 50 * S), col["cyr"],
-                font=f_col, fill=accent, anchor="mm")
-        # Nozik aksent chizig'i (underline)
+                font=f_col, fill=accent_dk, anchor="mm")
+        # Nozik aksent chizig'i (underline) — och fonda to'q variant
         uw = int(prayer_w * 0.34)
         ld.line((cx_mid - uw // 2, COLHDR_H - 22 * S, cx_mid + uw // 2, COLHDR_H - 22 * S),
-                fill=(*accent, 255), width=3 * S)
+                fill=(*accent_dk, 255), width=3 * S)
 
     # ── Data rows ─────────────────────────────────────────────────────────
     for r, (lotin, cyr) in enumerate(TUMAN_ORDER_CYR):
@@ -367,13 +368,13 @@ def render_qashqadaryo_table(
         has_data = any(row_data.get(col["key"]) for col in PRAYER_COLUMNS)
 
         ld.text((tuman_w // 2, ry_mid), cyr,
-                font=f_tuman, fill=COLOR_WHITE, anchor="mm")
+                font=f_tuman, fill=COLOR_INK, anchor="mm")
 
         for i, col in enumerate(PRAYER_COLUMNS):
             cx_mid = tuman_w + i * prayer_w + prayer_w // 2
             t = row_data.get(col["key"]) or ""
             if t:
-                ld.text((cx_mid, ry_mid), t, font=f_time, fill=COLOR_WHITE, anchor="mm")
+                ld.text((cx_mid, ry_mid), t, font=f_time, fill=COLOR_INK, anchor="mm")
             elif not has_data:
                 ld.text((cx_mid, ry_mid), EMPTY_MARK,
                         font=f_time, fill=(*COLOR_DIM, 160), anchor="mm")
@@ -404,7 +405,17 @@ def render_qashqadaryo_table(
     # Tuman ↔ prayer ustunlari orasida nozik oltin ajratuvchi
     ld.line((tuman_w, 0, tuman_w, card_h), fill=COLOR_GOLD_SEP, width=2 * S)
     # Colhdr ↔ data ajratuvchi
-    ld.line((0, COLHDR_H, card_w, COLHDR_H), fill=(255, 255, 255, 40), width=2 * S)
+    ld.line((0, COLHDR_H, card_w, COLHDR_H), fill=(22, 46, 34, 55), width=2 * S)
+
+    # Kart ostida yumshoq soya (och fonda chuqurlik uchun)
+    sh_pad = 30 * S
+    shadow = Image.new("RGBA", (card_w + sh_pad * 2, card_h + sh_pad * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(shadow).rounded_rectangle(
+        (sh_pad, sh_pad, sh_pad + card_w, sh_pad + card_h),
+        radius=RADIUS, fill=(*COLOR_SHADOW, 60),
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(18 * S))
+    img.alpha_composite(shadow, (card_x1 - sh_pad, CARD_TOP - sh_pad + 8 * S))
 
     # Yumaloq mask + asosiy rasmga joylash (kart butun yuzasi to'ldirilgan)
     layer.putalpha(_rounded_mask((card_w, card_h), RADIUS))

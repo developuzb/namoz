@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from app.core.config import get_settings
 from app.core.constants import ALL_PRAYERS, FARZ_PRAYERS
@@ -20,7 +20,10 @@ from app.core.logger import logger
 from app.services.backdrop import aqsa_backdrop
 from app.utils.time_utils import clean_hhmm
 
-DEFAULT_SIZE: tuple[int, int] = (1080, 1080)
+#: Chiqish o'lchami (yakuniy PNG). Sifat uchun ichkarida SS barobar
+#: kattaroq render qilinib, LANCZOS bilan kichraytiriladi (supersampling).
+DEFAULT_SIZE: tuple[int, int] = (1350, 1350)
+SS: int = 2  # supersample koeffitsienti (2 = 2x aniqlik)
 
 FONT_FILES: dict[str, str] = {
     "title":    "Montserrat-VariableFont_wght.ttf",
@@ -42,35 +45,38 @@ EMOJI_FILES: dict[str, str] = {
 
 EMPTY_MARK = "—"
 
-# ============== To'q iOS islomiy palette (Qashqadaryo bilan bir xil) ==========
-COLOR_BG_TOP   = (13, 28, 23)         # chuqur yashil-charcoal
-COLOR_BG_BOT   = (7, 15, 12)
-COLOR_GLOW     = (42, 96, 66)         # header ortidagi yumshoq nur
+# ============== Kunduzgi (light) islomiy palette ==============
+COLOR_BG_TOP   = (252, 250, 245)      # issiq oq (cream)
+COLOR_BG_BOT   = (236, 242, 236)      # och yashil-kul
+COLOR_GLOW     = (208, 224, 210)      # header ortida yumshoq salqin nur
 
-COLOR_GOLD     = (214, 176, 98)
-COLOR_GOLD_DK  = (168, 132, 64)
-COLOR_WHITE    = (244, 247, 245)
-COLOR_DIM      = (150, 166, 158)
+COLOR_GOLD     = (176, 138, 58)       # to'q oltin (och fonda kontrast)
+COLOR_GOLD_DK  = (140, 106, 42)
+COLOR_WHITE    = (255, 255, 255)      # hero (rangli) kart ustidagi matn uchun
+COLOR_INK      = (30, 48, 40)         # asosiy to'q matn (och fonda)
+COLOR_DIM      = (112, 126, 116)      # ikkilamchi matn
 
-COLOR_SURFACE  = (26, 40, 34)         # to'q kart yuzasi
-COLOR_BORDER   = (255, 255, 255, 30)  # nozik hairline ramka
+COLOR_SURFACE  = (255, 255, 255)      # oq kart yuzasi
+COLOR_BORDER   = (24, 48, 36, 34)     # nozik to'q hairline ramka
+COLOR_SHADOW   = (26, 46, 36)         # kart ostidagi yumshoq soya
 
-# Per-prayer accent (iOS, kun davriga mos)
+# Per-prayer accent (iOS, kun davriga mos) — hero kart gradienti uchun
 COLOR_ACCENT: dict[str, tuple[int, int, int]] = {
     "Bomdod":  (96, 170, 255),
-    "Quyosh":  (255, 201, 102),
+    "Quyosh":  (255, 190, 78),
     "Peshin":  (255, 128, 99),
-    "Asr":     (255, 168, 82),
-    "Shom":    (236, 124, 162),
-    "Xufton":  (146, 138, 238),
+    "Asr":     (255, 158, 72),
+    "Shom":    (236, 118, 156),
+    "Xufton":  (132, 122, 232),
 }
+# To'qroq variant — hero gradient pastki, va oq kartda matn/halqa uchun
 COLOR_ACCENT_DARK: dict[str, tuple[int, int, int]] = {
-    "Bomdod":  (52, 110, 188),
-    "Quyosh":  (210, 150, 50),
-    "Peshin":  (196, 78, 58),
-    "Asr":     (204, 116, 40),
-    "Shom":    (178, 72, 112),
-    "Xufton":  (96, 86, 188),
+    "Bomdod":  (44, 104, 182),
+    "Quyosh":  (190, 130, 34),
+    "Peshin":  (196, 70, 50),
+    "Asr":     (190, 104, 30),
+    "Shom":    (170, 62, 104),
+    "Xufton":  (82, 72, 178),
 }
 
 
@@ -134,7 +140,7 @@ def _next_prayer(home: dict[str, str], highlight: str | None) -> str:
 # ============== Background ==============
 
 def _make_bg(W: int, H: int) -> Image.Image:
-    """To'q yashil-charcoal vertikal gradient + header ortida yumshoq nur."""
+    """Issiq oq (cream) vertikal gradient + header ortida yumshoq nur."""
     grad = Image.new("RGB", (1, H))
     for y in range(H):
         t = y / max(H - 1, 1)
@@ -144,7 +150,7 @@ def _make_bg(W: int, H: int) -> Image.Image:
             int(COLOR_BG_TOP[2] + (COLOR_BG_BOT[2] - COLOR_BG_TOP[2]) * t),
         ))
     img = grad.resize((W, H)).convert("RGBA")
-    glow = _radial_glow(int(W * 0.95), COLOR_GLOW, 105)
+    glow = _radial_glow(int(W * 0.95), COLOR_GLOW, 70)
     img.alpha_composite(glow, (W // 2 - glow.size[0] // 2, int(-H * 0.22)))
     return img
 
@@ -186,8 +192,19 @@ def _surface(
     img: Image.Image, x: int, y: int, w: int, h: int, radius: int,
     *, fill: Image.Image | tuple[int, int, int] = COLOR_SURFACE,
     border: tuple[int, int, int, int] | None = COLOR_BORDER,
+    shadow: bool = True,
 ) -> None:
-    """To'q rounded surface + nozik hairline ramka."""
+    """Oq rounded surface — yumshoq soya + nozik hairline ramka."""
+    # Yumshoq soya (kart o'lchamidagi kichik tile — arzon blur)
+    if shadow:
+        pad = max(radius, h // 8)
+        tile = Image.new("RGBA", (w + pad * 2, h + pad * 2), (0, 0, 0, 0))
+        ImageDraw.Draw(tile).rounded_rectangle(
+            (pad, pad, pad + w, pad + h), radius=radius, fill=(*COLOR_SHADOW, 55),
+        )
+        tile = tile.filter(ImageFilter.GaussianBlur(max(4, h // 22)))
+        img.alpha_composite(tile, (x - pad, y - pad + max(3, h // 32)))
+
     if isinstance(fill, Image.Image):
         card = _rounded(fill, radius)
     else:
@@ -197,7 +214,8 @@ def _surface(
     if border is not None:
         layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
         ImageDraw.Draw(layer).rounded_rectangle(
-            (x, y, x + w, y + h), radius=radius, outline=border, width=2,
+            (x, y, x + w, y + h), radius=radius, outline=border,
+            width=max(2, h // 220),
         )
         img.alpha_composite(layer)
 
@@ -255,9 +273,11 @@ def make_prayer_image(
     size: tuple[int, int] = DEFAULT_SIZE,
     highlight_prayer: str | None = None,
 ) -> Path:
-    """v7: To'q iOS islomiy — hero + 2x3 grid."""
+    """v8: Kunduzgi (light) islomiy — hero + 2x3 grid, supersample HD."""
     settings = get_settings()
-    W, H = size
+    out_w, out_h = size
+    S = SS
+    W, H = out_w * S, out_h * S  # ichkarida SS barobar katta render
 
     home = _normalize_times(region_times)
     mosq = _normalize_times(masjid_times)
@@ -271,7 +291,7 @@ def make_prayer_image(
     # ── Masjidul Aqso motivi — header markazidagi bo'sh joyda, ixcham ────
     motif_w = int(0.30 * W)
     motif_h = int(0.115 * H)
-    motif = aqsa_backdrop(width=motif_w, height=motif_h, color=COLOR_GOLD, alpha=50)
+    motif = aqsa_backdrop(width=motif_w, height=motif_h, color=COLOR_GOLD, alpha=75)
     img.alpha_composite(
         motif, (W // 2 - motif_w // 2, int(0.140 * H) - motif_h),
     )
@@ -282,12 +302,12 @@ def make_prayer_image(
     m1 = int(0.018 * W)
     fd.rounded_rectangle(
         (m1, m1, W - m1, H - m1),
-        radius=int(0.030 * W), outline=(*COLOR_GOLD, 110), width=3,
+        radius=int(0.030 * W), outline=(*COLOR_GOLD, 140), width=3 * S,
     )
-    m2 = m1 + 10
+    m2 = m1 + 10 * S
     fd.rounded_rectangle(
         (m2, m2, W - m2, H - m2),
-        radius=int(0.026 * W), outline=(*COLOR_GOLD, 50), width=1,
+        radius=int(0.026 * W), outline=(*COLOR_GOLD, 70), width=1 * S,
     )
     img.alpha_composite(frame)
 
@@ -330,20 +350,20 @@ def make_prayer_image(
     rx = margin
     if pin:
         img.alpha_composite(pin, (rx, region_y - pin.size[1] // 2))
-        rx += pin.size[0] + 12
+        rx += pin.size[0] + 12 * S
     d.text(
         (rx, region_y), region_name.upper(),
         font=f_region, fill=COLOR_GOLD, anchor="lm",
     )
     _draw_spaced(
-        d, (margin + 2, int(0.122 * H)), "NAMOZ VAQTLARI",
-        f_label, COLOR_DIM, spacing=4,
+        d, (margin + 2 * S, int(0.122 * H)), "NAMOZ VAQTLARI",
+        f_label, COLOR_DIM, spacing=4 * S,
     )
 
     # Sanalar — o'ng tomonda
     d.text(
         (W - margin, int(0.078 * H)), milodiy,
-        font=f_date, fill=COLOR_WHITE, anchor="rm",
+        font=f_date, fill=COLOR_INK, anchor="rm",
     )
     d.text(
         (W - margin, int(0.116 * H)), hijriy,
@@ -354,12 +374,12 @@ def make_prayer_image(
     line_y = int(0.155 * H)
     line = Image.new("RGBA", img.size, (0, 0, 0, 0))
     ld_ = ImageDraw.Draw(line)
-    dia = 7
+    dia = 7 * S
     ld_.line(
-        (margin, line_y, W // 2 - dia - 8, line_y), fill=(*COLOR_GOLD, 90), width=2,
+        (margin, line_y, W // 2 - dia - 8 * S, line_y), fill=(*COLOR_GOLD, 120), width=2 * S,
     )
     ld_.line(
-        (W // 2 + dia + 8, line_y, W - margin, line_y), fill=(*COLOR_GOLD, 90), width=2,
+        (W // 2 + dia + 8 * S, line_y, W - margin, line_y), fill=(*COLOR_GOLD, 120), width=2 * S,
     )
     ld_.polygon(
         [
@@ -419,7 +439,7 @@ def make_prayer_image(
     if has_mosq and mosq.get(hero_prayer):
         time_w = d.textlength(home.get(hero_prayer) or EMPTY_MARK, font=f_hero_time)
         d.text(
-            (tx + time_w + 22, time_y + int(hero_h * 0.06)),
+            (tx + time_w + 22 * S, time_y + int(hero_h * 0.06)),
             f"jamoat {mosq.get(hero_prayer)}",
             font=f_hero_sub, fill=(255, 255, 255, 215), anchor="lm",
         )
@@ -441,15 +461,17 @@ def make_prayer_image(
         cy0 = grid_top + row * (card_h + gap)
         is_next = (prayer == highlight_prayer)
         p_accent = COLOR_ACCENT.get(prayer, (120, 130, 160))
+        p_accent_dk = COLOR_ACCENT_DARK.get(prayer, (70, 80, 110))
 
         if is_next:
-            # Keyingi namoz: aksent tint + aksent halqa
-            tint = Image.new("RGBA", (card_w, card_h), (*p_accent, 38))
+            # Keyingi namoz: yengil aksent tint + to'q aksent halqa
+            tint = Image.new("RGBA", (card_w, card_h), (*p_accent, 30))
             base = Image.new("RGBA", (card_w, card_h), (*COLOR_SURFACE, 255))
             fill_img = Image.alpha_composite(base, tint)
             _surface(img, cx0, cy0, card_w, card_h, card_radius,
                      fill=fill_img, border=None)
-            _ring(img, cx0, cy0, card_w, card_h, card_radius, p_accent, width=3)
+            _ring(img, cx0, cy0, card_w, card_h, card_radius, p_accent_dk,
+                  width=3 * S)
         else:
             _surface(img, cx0, cy0, card_w, card_h, card_radius)
 
@@ -462,15 +484,16 @@ def make_prayer_image(
                 em, (ccx - em.size[0] // 2, cy0 + int(card_h * 0.10)),
             )
 
+        # Kart nomi — to'q aksent (oq kartda kontrast uchun)
         d.text(
             (ccx, cy0 + int(card_h * 0.555)), prayer,
-            font=f_card_name, fill=p_accent, anchor="mm",
+            font=f_card_name, fill=p_accent_dk, anchor="mm",
         )
         jamoat = mosq.get(prayer) if has_mosq else None
         time_yy = cy0 + int(card_h * (0.74 if jamoat else 0.80))
         d.text(
             (ccx, time_yy), home.get(prayer) or EMPTY_MARK,
-            font=f_card_time, fill=COLOR_WHITE, anchor="mm",
+            font=f_card_time, fill=COLOR_INK, anchor="mm",
         )
         if jamoat:
             d.text(
@@ -497,8 +520,11 @@ def make_prayer_image(
         out_path = settings.images_dir / f"{_safe_filename(region_name)}.png"
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    img.convert("RGB").save(out_path, optimize=True, quality=92)
-    logger.debug("Rasm saqlandi: {}", out_path)
+    # Supersample'ni yakuniy o'lchamga LANCZOS bilan kichraytirish (crisp) +
+    # PNG lossless — send_photo qayta siqadi, lekin manba maksimal toza bo'ladi.
+    final = img.convert("RGB").resize((out_w, out_h), Image.Resampling.LANCZOS)
+    final.save(out_path, format="PNG", optimize=True)
+    logger.debug("Rasm saqlandi: {} ({}x{})", out_path, out_w, out_h)
     return out_path
 
 
