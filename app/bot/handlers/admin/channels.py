@@ -33,6 +33,9 @@ from app.bot.keyboards.callback_data import (
     CB_CH_CANCEL,
     CB_CH_DELETE,
     CB_CH_DELETE_OK,
+    CB_CH_EDIT_LINK,
+    CB_CH_EDIT_REGION,
+    CB_CH_EDIT_TITLE,
     CB_CH_TEMPLATE_CLEAR,
     CB_CH_TEMPLATE_EDIT,
     CB_CH_TOGGLE,
@@ -277,6 +280,33 @@ async def _save_channel(
     region_id: int,
 ) -> None:
     data = await state.get_data()
+    edit_channel_id = data.get("edit_channel_id")
+
+    ch_repo = ChannelRepository(session)
+    rr = RegionRepository(session)
+    region = await rr.get(region_id)
+    if region is None:
+        await call.answer("Region topilmadi", show_alert=True)
+        return
+
+    # ── Mavjud kanal hududini yangilash (tahrir oqimi) ──
+    if edit_channel_id:
+        ch = await ch_repo.get(edit_channel_id)
+        if ch is None:
+            await call.answer("Kanal topilmadi", show_alert=True)
+            await state.clear()
+            return
+        ch.region_id = region_id
+        await session.flush()
+        await state.clear()
+        logger.info(
+            "Channel region updated: id={} region={}", ch.id, region.name,
+        )
+        await call.answer("✅ Hudud yangilandi")
+        await _show_channel_detail(call.message, session, ch.id, edit=True)
+        return
+
+    # ── Yangi kanal yaratish (qo'shish oqimi) ──
     chat_id = data.get("chat_id")
     title = data.get("title")
     link = data.get("link")
@@ -284,13 +314,6 @@ async def _save_channel(
     if not chat_id:
         await call.answer("Sessiya tugadi, qaytadan boshlang", show_alert=True)
         await state.clear()
-        return
-
-    ch_repo = ChannelRepository(session)
-    rr = RegionRepository(session)
-    region = await rr.get(region_id)
-    if region is None:
-        await call.answer("Region topilmadi", show_alert=True)
         return
 
     try:
@@ -324,19 +347,15 @@ async def _save_channel(
 
 # =================== View / toggle / delete ===================
 
-@router.callback_query(F.data.startswith(f"{CB_CH_VIEW}:"))
-async def view_channel(call: CallbackQuery, session: AsyncSession) -> None:
-    try:
-        ch_id = int(call.data.split(":", 1)[1])
-    except (ValueError, IndexError):
-        await call.answer("Noto'g'ri", show_alert=True)
-        return
-
+async def _show_channel_detail(
+    target: Message, session: AsyncSession, ch_id: int, *, edit: bool = True
+) -> None:
+    """Kanal tafsilotini ko'rsatadi (view va tahrirdan keyin qayta ishlatiladi)."""
     ch_repo = ChannelRepository(session)
     rr = RegionRepository(session)
     ch = await ch_repo.get(ch_id)
     if ch is None:
-        await call.answer("Kanal topilmadi", show_alert=True)
+        await target.answer("Kanal topilmadi")
         return
     region = await rr.get(ch.region_id)
 
@@ -356,12 +375,152 @@ async def view_channel(call: CallbackQuery, session: AsyncSession) -> None:
         f"📊 {'✅ Faol' if ch.is_active else '⏸ Pauza'}"
         f"{template_preview}"
     )
+    kb = channel_detail_keyboard(
+        ch.id, ch.is_active, has_template=bool(ch.custom_caption_template),
+    )
+    if edit:
+        await target.edit_text(text, reply_markup=kb)
+    else:
+        await target.answer(text, reply_markup=kb)
+
+
+@router.callback_query(F.data.startswith(f"{CB_CH_VIEW}:"))
+async def view_channel(call: CallbackQuery, session: AsyncSession) -> None:
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+    await _show_channel_detail(call.message, session, ch_id, edit=True)
+    await call.answer()
+
+
+# =================== Tahrirlash: hudud / link / nom ===================
+
+@router.callback_query(F.data.startswith(f"{CB_CH_EDIT_REGION}:"))
+async def start_edit_region(
+    call: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    """Kanal hududini o'zgartirish — hudud tanlash oqimini qayta ishlatadi."""
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+    ch_repo = ChannelRepository(session)
+    if await ch_repo.get(ch_id) is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+    # edit_channel_id — _save_channel yangi yaratish o'rniga yangilashini bildiradi
+    await state.set_state(ChannelFSM.choosing_region)
+    await state.update_data(edit_channel_id=ch_id)
+    await call.answer()
+    await _show_region_picker_for_channel(call.message, session)
+
+
+@router.callback_query(F.data.startswith(f"{CB_CH_EDIT_LINK}:"))
+async def start_edit_link(
+    call: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+    await state.set_state(ChannelFSM.editing_link)
+    await state.update_data(edit_channel_id=ch_id)
     await call.message.edit_text(
-        text, reply_markup=channel_detail_keyboard(
-            ch.id, ch.is_active, has_template=bool(ch.custom_caption_template),
-        ),
+        f"🔗 <b>Yangi link</b> — <i>{escape_html(ch.title or '')}</i>\n\n"
+        f"Hozirgi: <code>{escape_html(ch.link or '—')}</code>\n\n"
+        "Yangi linkni yuboring (masalan <code>@kanal</code> yoki "
+        "<code>https://t.me/...</code>).\n"
+        "O'chirish uchun <code>-</code> yuboring. Bekor: /cancel",
     )
     await call.answer()
+
+
+@router.message(StateFilter(ChannelFSM.editing_link))
+async def receive_link(
+    message: Message, state: FSMContext, session: AsyncSession
+) -> None:
+    if not message.text or message.text.startswith("/"):
+        return  # /cancel boshqa handlerga
+    data = await state.get_data()
+    ch_id = data.get("edit_channel_id")
+    if not ch_id:
+        await state.clear()
+        await message.answer("⚠️ Sessiya tugadi. Qaytadan boshlang.")
+        return
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await state.clear()
+        await message.answer("Kanal topilmadi")
+        return
+
+    raw = message.text.strip()
+    ch.link = None if raw in ("-", "—") else raw
+    await session.flush()
+    await state.clear()
+    logger.info("Channel link updated: id={} link={!r}", ch_id, ch.link)
+    await message.answer("✅ Link yangilandi.")
+    await _show_channel_detail(message, session, ch_id, edit=False)
+
+
+@router.callback_query(F.data.startswith(f"{CB_CH_EDIT_TITLE}:"))
+async def start_edit_title(
+    call: CallbackQuery, session: AsyncSession, state: FSMContext
+) -> None:
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+    await state.set_state(ChannelFSM.editing_title)
+    await state.update_data(edit_channel_id=ch_id)
+    await call.message.edit_text(
+        f"📝 <b>Yangi nom</b>\n\n"
+        f"Hozirgi: <code>{escape_html(ch.title or '—')}</code>\n\n"
+        "Yangi nomni yuboring (faqat admin ko'radi). Bekor: /cancel",
+    )
+    await call.answer()
+
+
+@router.message(StateFilter(ChannelFSM.editing_title))
+async def receive_title(
+    message: Message, state: FSMContext, session: AsyncSession
+) -> None:
+    if not message.text or message.text.startswith("/"):
+        return
+    data = await state.get_data()
+    ch_id = data.get("edit_channel_id")
+    if not ch_id:
+        await state.clear()
+        await message.answer("⚠️ Sessiya tugadi. Qaytadan boshlang.")
+        return
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await state.clear()
+        await message.answer("Kanal topilmadi")
+        return
+
+    ch.title = message.text.strip()[:256]
+    await session.flush()
+    await state.clear()
+    logger.info("Channel title updated: id={} title={!r}", ch_id, ch.title)
+    await message.answer("✅ Nom yangilandi.")
+    await _show_channel_detail(message, session, ch_id, edit=False)
 
 
 # =================== Custom caption template ===================

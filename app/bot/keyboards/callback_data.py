@@ -75,6 +75,9 @@ CB_CH_BACK_VIL = "ch_vil_back"
 CB_CH_CANCEL = "ch:cancel"
 CB_CH_TEMPLATE_EDIT = "ch:tmpl"      # ch:tmpl:<id>
 CB_CH_TEMPLATE_CLEAR = "ch:tmpl_clr" # ch:tmpl_clr:<id>
+CB_CH_EDIT_REGION = "ch:ereg"        # ch:ereg:<id> — hududni o'zgartirish
+CB_CH_EDIT_LINK = "ch:elink"         # ch:elink:<id> — linkni o'zgartirish
+CB_CH_EDIT_TITLE = "ch:etitle"       # ch:etitle:<id> — nomni o'zgartirish
 
 # ---------- Admin: Masjid time edit ----------
 CB_MT_VILOYAT = "mt_vil"             # mt_vil:<region_id>

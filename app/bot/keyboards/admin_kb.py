@@ -47,13 +47,21 @@ def channels_list_keyboard(channels: list[Channel]) -> InlineKeyboardMarkup:
 def channel_detail_keyboard(
     channel_id: int, is_active: bool, *, has_template: bool = False
 ) -> InlineKeyboardMarkup:
-    """Bitta kanal uchun amallar (toggle / template / delete / back)."""
+    """Bitta kanal uchun amallar (tahrir / toggle / template / delete / back)."""
     from app.bot.keyboards.callback_data import (
+        CB_CH_EDIT_LINK,
+        CB_CH_EDIT_REGION,
+        CB_CH_EDIT_TITLE,
         CB_CH_TEMPLATE_CLEAR,
         CB_CH_TEMPLATE_EDIT,
     )
 
     kb = InlineKeyboardBuilder()
+    # Tahrirlash
+    kb.button(text="📍 Hududni o'zgartirish", callback_data=f"{CB_CH_EDIT_REGION}:{channel_id}")
+    kb.button(text="🔗 Linkni o'zgartirish", callback_data=f"{CB_CH_EDIT_LINK}:{channel_id}")
+    kb.button(text="📝 Nomni o'zgartirish", callback_data=f"{CB_CH_EDIT_TITLE}:{channel_id}")
+    # Holat / o'chirish
     toggle_text = "⏸ Pauza" if is_active else "▶ Faollashtirish"
     kb.button(text=toggle_text, callback_data=f"{CB_CH_TOGGLE}:{channel_id}")
     kb.button(text="🗑 O'chirish", callback_data=f"{CB_CH_DELETE}:{channel_id}")
@@ -65,7 +73,8 @@ def channel_detail_keyboard(
             callback_data=f"{CB_CH_TEMPLATE_CLEAR}:{channel_id}",
         )
     kb.button(text="« Kanallar ro'yxati", callback_data=CB_ADMIN_CHANNELS)
-    sizes = [2, 1] + ([1] if has_template else []) + [1]
+    # 3 tahrir tugmasi (2+1), toggle+delete (2), template (1), [clear (1)], back (1)
+    sizes = [2, 1, 2, 1] + ([1] if has_template else []) + [1]
     kb.adjust(*sizes)
     return kb.as_markup()
 

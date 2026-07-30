@@ -13,12 +13,15 @@ class MasjidTimeFSM(StatesGroup):
 
 
 class ChannelFSM(StatesGroup):
-    """Kanal qo'shish oqimi."""
+    """Kanal qo'shish va tahrirlash oqimi."""
 
     waiting_forward = State()
     choosing_region = State()
     entering_link = State()
     entering_caption_template = State()
+    # Tahrirlash (mavjud kanal)
+    editing_link = State()
+    editing_title = State()
 
 
 class BroadcastFSM(StatesGroup):
