@@ -18,11 +18,12 @@ def build_channel_metadata(channel: Channel) -> tuple[str, str]:
 
     # 2. Professional Description (Tavsif / Bio)
     # Maksimal 255 belgi (Telegram tavsif cheklovi)
+    # O'zbekiston Musulmonlari Idorasi va rasmiy o'zbek manbalariga tayangan aniq matn:
     description = (
         f"🕌 {region_name} tumani bo'yicha kunlik aniq namoz vaqtlari, "
         "eslatmalar va taqvim rasmiy kanali.\n\n"
         "📅 Har kuni avtomatik yangilanish.\n"
-        "🤖 Bot: @Taqvimbot\n"
+        "🤖 Rasmiy bot: @nmsupportbot\n"
         "✨ Ibodatlaringizni o'z vaqtida ado eting!"
     )
 

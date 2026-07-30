@@ -49,7 +49,7 @@ async def cmd_start(
     else:
         text = (
             f"Assalomu alaykum, <b>{name}</b>{admin_badge}!\n\n"
-            "🕌 <b>TAQVIMbot</b> — yer yuzining istalgan joyi uchun namoz vaqtlari.\n\n"
+            "🕌 <b>@nmsupportbot</b> — Namoz vaqtlari, eslatmalar va taqvim rasmiy boti.\n\n"
             "Boshlash uchun hududingizni qanday topamiz?"
         )
         await message.answer(text, reply_markup=onboarding_keyboard())

@@ -174,7 +174,7 @@ def generate_channel_avatar(title: str, subtitle: str = "NAMOZ VAQTLARI") -> Pat
 
 async def update_channel_avatar(bot: Bot, channel: Channel) -> tuple[bool, str]:
     """Bitta kanal uchun rasm yaratadi va Telegram'ga avatar qilib qo'yadi."""
-    title = channel.title or (channel.region.name if channel.region else "TaqvimBot")
+    title = channel.title or (channel.region.name if channel.region else "nmsupportbot")
     try:
         avatar_path = generate_channel_avatar(title=title)
         photo = FSInputFile(str(avatar_path))

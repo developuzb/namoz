@@ -46,57 +46,57 @@ QURAN_AYAHS_PRAYER: tuple[Ayah, ...] = (
     ),
     Ayah(
         arabic="حَافِظُوا عَلَى الصَّلَوَاتِ وَالصَّلَاةِ الْوُسْطَىٰ",
-        uzbek="Namozlarni va o'rta namozni saqlangiz.",
+        uzbek="Namozlarni va o'rta namozni muhofaza qilingiz.",
         ref="Baqara 2:238",
     ),
     Ayah(
         arabic="وَأَقِيمُوا الصَّلَاةَ وَآتُوا الزَّكَاةَ وَارْكَعُوا مَعَ الرَّاكِعِينَ",
-        uzbek="Namoz o'qing, zakot bering, ruku' qiluvchilar bilan ruku' qiling.",
+        uzbek="Namozni to'kis ado eting, zakot bering va ruku' qiluvchilar bilan birga ruku' qiling.",
         ref="Baqara 2:43",
     ),
     Ayah(
         arabic="قَدْ أَفْلَحَ الْمُؤْمِنُونَ ۝ الَّذِينَ هُمْ فِي صَلَاتِهِمْ خَاشِعُونَ",
-        uzbek="Mo'minlar najot topdilar — namozlarida xushu' qiluvchilar.",
+        uzbek="Batahqiq, mo'minlar najot topdilar — ular namozlarida xushu' qiluvchidirlar.",
         ref="Mu'minun 23:1-2",
     ),
     Ayah(
         arabic="وَالَّذِينَ هُمْ عَلَىٰ صَلَوَاتِهِمْ يُحَافِظُونَ",
-        uzbek="Va ular namozlarini muhofaza qiladilar.",
+        uzbek="Ular namozlarini muhofaza etadigan kishilardir.",
         ref="Mu'minun 23:9",
     ),
     Ayah(
         arabic="فَاسْجُدْ لِلَّهِ وَاعْبُدْ",
-        uzbek="Bas, Allohga sajda qil va ibodat qil.",
+        uzbek="Bas, Allohga sajda qilinglar va ibodat qilinglar!",
         ref="Najm 53:62",
     ),
     Ayah(
         arabic="وَأَقِمِ الصَّلَاةَ طَرَفَيِ النَّهَارِ وَزُلَفًا مِّنَ اللَّيْلِ",
-        uzbek="Namozni kunning ikki tomonida va kechaning bir qismida o'qi.",
+        uzbek="Namozni kunning ikki chetida va kechaning bir bo'lagida mukammal ado eting.",
         ref="Hud 11:114",
     ),
     Ayah(
         arabic="فَوَيْلٌ لِّلْمُصَلِّينَ ۝ الَّذِينَ هُمْ عَن صَلَاتِهِمْ سَاهُونَ",
-        uzbek="Voy, namozlaridan g'ofil bo'lgan namozxonlarning holiga.",
+        uzbek="Ushbu namozxonlarga voy bo'lsinki, ular namozlarini unutar (g'ofil)dirlar.",
         ref="Mo'un 107:4-5",
     ),
     Ayah(
         arabic="إِلَّا الْمُصَلِّينَ ۝ الَّذِينَ هُمْ عَلَىٰ صَلَاتِهِمْ دَائِمُونَ",
-        uzbek="Faqat namozxonlar — namozlariga doimiy bo'ladiganlar bundan mustasno.",
+        uzbek="Magar namozxonlar — namozlarini doimiy ado etuvchilar mustasnodir.",
         ref="Ma'orij 70:22-23",
     ),
     Ayah(
         arabic="يَا أَيُّهَا الَّذِينَ آمَنُوا اسْتَعِينُوا بِالصَّبْرِ وَالصَّلَاةِ ۚ إِنَّ اللَّهَ مَعَ الصَّابِرِينَ",
-        uzbek="Ey iymon keltirganlar! Sabr va namoz bilan yordam so'rang. Albatta, Alloh sabr qiluvchilar bilandir.",
+        uzbek="Ey iymon keltirganlar! Sabr va namoz ila yordam so'ranglar. Albatta, Alloh sabrlilar bilandir.",
         ref="Baqara 2:153",
     ),
     Ayah(
         arabic="إِنَّ فِي ذَٰلِكَ لَذِكْرَىٰ لِمَن كَانَ لَهُ قَلْبٌ",
-        uzbek="Albatta, bunda qalbi bor odam uchun ibrat bordir.",
+        uzbek="Albatta, bunda qalbi bor kishi uchun ibrat va eslatma bordir.",
         ref="Qof 50:37",
     ),
     Ayah(
         arabic="وَاذْكُرُوا اللَّهَ كَثِيرًا لَّعَلَّكُمْ تُفْلِحُونَ",
-        uzbek="Allohni ko'p yodga oling — najot topishingiz mumkin.",
+        uzbek="Allohni ko'p zikr qilingiz, shoyad najot topsangiz.",
         ref="Anfol 8:45",
     ),
 )
@@ -166,52 +166,52 @@ class Hadith:
 # ============== 12 ta qisqa hadis (asosan namoz haqida) ==============
 HADITHS: tuple[Hadith, ...] = (
     Hadith(
-        text_uz="«Mo'min va kofir o'rtasidagi farq — namozni tark qilishdir.»",
+        text_uz="«Kishi bilan shirk va kufr o'rtasidagi narsa — namozni tark etishdir.»",
         source="Muslim",
     ),
     Hadith(
-        text_uz="«Qiyomat kunida bandadan so'raladigan birinchi narsa namoz bo'ladi.»",
+        text_uz="«Qiyomat kunida bandadan eng birinchi so'raladigan amal — namoz bo'ladi.»",
         source="Tirmiziy",
     ),
     Hadith(
-        text_uz="«Beshta namoz — eshik oldidan oqib turgan daryo kabi: u kuniga besh marta cho'milgan kishi tanasida hech qanday kir qolmaydi.»",
+        text_uz="«Besh vaqt namoz — eshigingiz oldidan oqib turgan mo'l-ko'l daryoga o'xshaydi, unda har kuni besh mahal yuvingan kishida hech qanday kir qolmaydi.»",
         source="Buxoriy va Muslim",
     ),
     Hadith(
-        text_uz="«Eng yaxshi amal — vaqtida o'qilgan namoz.»",
+        text_uz="«Amallarning eng afzali — o'z vaqtida o'qilgan namozdir.»",
         source="Buxoriy",
     ),
     Hadith(
-        text_uz="«Kim ikki sovuq vaqtni (Bomdod va Asrni) o'qisa, jannatga kiradi.»",
+        text_uz="«Kim ikki sovuq vaqtdagi namozni (Bomdod va Asrni) ado etsa, jannatga kiradi.»",
         source="Buxoriy",
     ),
     Hadith(
-        text_uz="«Jamoat namozi yolg'iz o'qilgan namozdan yigirma yetti baravar afzal.»",
+        text_uz="«Jamoat namozi yolg'iz o'qilgan namozdan yigirma yetti daraja afzaldir.»",
         source="Buxoriy va Muslim",
     ),
     Hadith(
-        text_uz="«Bandaning Robbiga eng yaqin holati — sajda holatidir.»",
+        text_uz="«Bandaning Robbiga eng yaqin bo'ladigan holati — sajda holatidir. Bas, sajdada duoni ko'paytiringlar.»",
         source="Muslim",
     ),
     Hadith(
-        text_uz="«Juma kuni — kunlarning eng yaxshisidir. O'sha kunda Odam alayhissalom yaratilgan.»",
+        text_uz="«Kunlarning eng afzali — Juma kunidir.»",
         source="Muslim",
     ),
     Hadith(
-        text_uz="«Kim chiroyli tahorat olib, namoz o'qisa, oldingi kichik gunohlari kechiriladi.»",
+        text_uz="«Kim chiroyli tahorat olib, namoz o'qisa, o'tgan kichik gunohlari mag'firat qilinadi.»",
         source="Buxoriy va Muslim",
     ),
     Hadith(
-        text_uz="«Vitr namozini saqlanglar — bu Allohning sizga sevimli sovg'asidir.»",
+        text_uz="«Alloh toqdir (yakkadir) va toqni yaxshi ko'radi. Ey Qur'on ahli, Vitr namozini o'qinglar!»",
         source="Tirmiziy",
     ),
     Hadith(
-        text_uz="«Kim Bomdoddan keyin masjidda quyosh chiqquncha o'tirib zikr qilsa, bir to'liq haj va umra savobiga ega bo'ladi.»",
+        text_uz="«Kim Bomdod namozini jamoat bilan o'qib, so'ngra quyosh chiqquncha Allohni zikr qilib o'tirsa, keyin ikki rakat namoz o'qisa, unga to'liq haj va umra savobi beriladi.»",
         source="Tirmiziy",
     ),
     Hadith(
-        text_uz="«Ey o'g'lim! Namozni qoim qil — bu eng buyuk amaldir.»",
-        source="Luqmonning o'g'liga vasiyati — Luqmon 31:17",
+        text_uz="«Islom besh narsa ustiga qurilgandir: Allohdan o'zga iloh yo'qligiga guvohlik berish va namozni ado etish...»",
+        source="Buxoriy va Muslim",
     ),
 )
 
@@ -232,12 +232,12 @@ def get_daily_hadith(day_ordinal: int) -> Hadith:
 
 
 __all__ = [
-    "Ayah",
     "DUAS",
-    "Dua",
     "HADITHS",
-    "Hadith",
     "QURAN_AYAHS_PRAYER",
+    "Ayah",
+    "Dua",
+    "Hadith",
     "get_daily_ayah",
     "get_daily_dua",
     "get_daily_hadith",

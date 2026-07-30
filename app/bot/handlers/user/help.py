@@ -8,7 +8,7 @@ from aiogram.types import Message
 router = Router(name="user.help")
 
 _USER_HELP = (
-    "ℹ️ <b>TAQVIMbot — yordam</b>\n\n"
+    "ℹ️ <b>@nmsupportbot — yordam</b>\n\n"
     "<b>📚 Asosiy buyruqlar</b>\n"
     "  • /start — botni ishga tushirish va asosiy menyu\n"
     "  • /help — shu yordam matni\n\n"

@@ -21,7 +21,7 @@ async def share(call: CallbackQuery) -> None:
 
     # Telegram'ning switch_inline_query — chat ro'yxati ochiladi va mas tayyorlanadi
     share_text = (
-        f"🕌 Men TAQVIMbot dan foydalanaman — "
+        f"🕌 Men @nmsupportbot dan foydalanaman — "
         f"har kuni namoz vaqtlari, qibla yo'nalishi, hijriy sana va boshqa "
         f"foydali ma'lumotlar.\n\n{deep_link}"
     )
