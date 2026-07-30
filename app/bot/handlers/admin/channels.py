@@ -36,6 +36,8 @@ from app.bot.keyboards.callback_data import (
     CB_CH_EDIT_LINK,
     CB_CH_EDIT_REGION,
     CB_CH_EDIT_TITLE,
+    CB_CH_SET_ALL_AVATARS,
+    CB_CH_SET_AVATAR,
     CB_CH_TEMPLATE_CLEAR,
     CB_CH_TEMPLATE_EDIT,
     CB_CH_TOGGLE,
@@ -123,8 +125,8 @@ async def receive_forwarded(
     chat = message.forward_from_chat
     if chat.type != "channel":
         await message.answer(
-            "❌ Bu kanal emas (chat turi: <code>{}</code>).\n"
-            "Iltimos, kanaldan forward qiling.".format(chat.type)
+            f"❌ Bu kanal emas (chat turi: <code>{chat.type}</code>).\n"
+            "Iltimos, kanaldan forward qiling."
         )
         return
 
@@ -691,6 +693,99 @@ async def do_delete(call: CallbackQuery, session: AsyncSession) -> None:
     logger.info("Channel deleted: id={}", ch_id)
     await call.answer("🗑 O'chirildi")
     await _show_channels_list(call, session)
+
+
+# =================== Avatar / Profile picture handlers ===================
+
+@router.callback_query(F.data.startswith(f"{CB_CH_SET_AVATAR}:"))
+async def set_single_avatar(call: CallbackQuery, session: AsyncSession) -> None:
+    """Bitta kanal uchun profil rasmini avtomatik yasaydi va o'rnatadi."""
+    from app.services.channel_avatar import update_channel_avatar
+
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+
+    await call.answer("⏳ Profil rasmi tayyorlanmoqda va o'rnatilmoqda...")
+    ok, err = await update_channel_avatar(call.bot, ch)
+
+    if ok:
+        title = ch.title or (ch.region.name if ch.region else str(ch.chat_id))
+        await call.message.answer(
+            f"✅ <b>{escape_html(title)}</b> kanalining profil rasmi "
+            "muvaffaqiyatli yangilandi!"
+        )
+    else:
+        await call.message.answer(
+            f"❌ <b>Xatolik</b>: Kanalga rasm o'rnatilmadi.\n\n"
+            f"<code>{escape_html(err)}</code>\n\n"
+            "ℹ️ <i>Bot kanalda admin ekanini va info/photo o'zgartirish huquqiga egaligini tekshiring.</i>"
+        )
+
+
+@router.callback_query(F.data == CB_CH_SET_ALL_AVATARS)
+async def set_all_avatars_callback(call: CallbackQuery, session: AsyncSession) -> None:
+    """Barcha faol kanallarga rasmlarni tayyorlab o'rnatadi."""
+    await call.answer("⏳ Barcha kanallarga rasm qo'yish boshlandi...")
+    await _run_all_avatars(call.message, session)
+
+
+@router.message(Command("set_channel_photos"))
+@router.message(Command("set_avatars"))
+async def cmd_set_channel_photos(message: Message, session: AsyncSession) -> None:
+    """Buyruq orqali barcha kanallarga avatarlarni o'rnatish."""
+    await message.answer("⏳ <b>Barcha kanallarga nomiga mos rasm tayyorlash va o'rnatish boshlandi...</b>")
+    await _run_all_avatars(message, session)
+
+
+async def _run_all_avatars(target_message: Message, session: AsyncSession) -> None:
+    """Barcha kanallarga rasmlarni avtomatik yasash va Telegram'ga yuklash."""
+    from app.services.channel_avatar import update_channel_avatar
+
+    ch_repo = ChannelRepository(session)
+    channels = await ch_repo.list_all_with_region()
+
+    if not channels:
+        await target_message.answer("⚠️ Hali birorta ham kanal qo'shilmagan.")
+        return
+
+    status_msg = await target_message.answer(
+        f"🖼 <b>{len(channels)} ta kanal uchun profil rasmlari tayyorlanmoqda...</b>\n"
+        "Iltimos, kuting..."
+    )
+
+    success_count = 0
+    fail_count = 0
+    results = []
+
+    for ch in channels:
+        title = ch.title or (ch.region.name if ch.region else str(ch.chat_id))
+        ok, err = await update_channel_avatar(target_message.bot, ch)
+        if ok:
+            success_count += 1
+            results.append(f"✅ <b>{escape_html(title)}</b> — O'rnatildi")
+        else:
+            fail_count += 1
+            results.append(f"❌ <b>{escape_html(title)}</b> — <code>{escape_html(err[:100])}</code>")
+
+    summary = (
+        "📊 <b>Kanal rasmlarini o'rnatish natijasi:</b>\n\n"
+        f"✅ Muvaffaqiyatli: <b>{success_count}</b> ta\n"
+        f"❌ Xatolar: <b>{fail_count}</b> ta\n\n"
+        + "\n".join(results[:15])
+    )
+    if len(results) > 15:
+        summary += f"\n…va yana {len(results) - 15} ta"
+
+    await status_msg.edit_text(summary)
 
 
 # =================== Back to admin root ===================
