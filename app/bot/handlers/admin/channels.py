@@ -240,7 +240,7 @@ async def pick_viloyat(
     call: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     try:
-        viloyat_id = int(call.data.split(":", 1)[1])
+        viloyat_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -288,7 +288,7 @@ async def pick_tuman(
     call: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     try:
-        tuman_id = int(call.data.split(":", 1)[1])
+        tuman_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -429,7 +429,7 @@ async def _show_channel_detail(
 @router.callback_query(F.data.startswith(f"{CB_CH_VIEW}:"))
 async def view_channel(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -445,7 +445,7 @@ async def start_edit_region(
 ) -> None:
     """Kanal hududini o'zgartirish — hudud tanlash oqimini qayta ishlatadi."""
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -465,7 +465,7 @@ async def start_edit_link(
     call: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -519,7 +519,7 @@ async def start_edit_title(
     call: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -572,7 +572,7 @@ async def start_edit_template(
     call: CallbackQuery, session: AsyncSession, state: FSMContext
 ) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -652,7 +652,7 @@ async def receive_template(
 @router.callback_query(F.data.startswith(f"{CB_CH_TEMPLATE_CLEAR}:"))
 async def clear_template(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -672,7 +672,7 @@ async def clear_template(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_CH_TOGGLE}:"))
 async def toggle_channel(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -695,7 +695,7 @@ async def toggle_channel(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_CH_DELETE}:"))
 async def confirm_delete(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -718,7 +718,7 @@ async def confirm_delete(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_CH_DELETE_OK}:"))
 async def do_delete(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -743,7 +743,7 @@ async def set_single_avatar(call: CallbackQuery, session: AsyncSession) -> None:
     from app.services.channel_avatar import update_channel_avatar
 
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -837,7 +837,7 @@ async def set_single_info(call: CallbackQuery, session: AsyncSession) -> None:
     from app.services.channel_metadata import update_channel_info
 
     try:
-        ch_id = int(call.data.split(":", 1)[1])
+        ch_id = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
