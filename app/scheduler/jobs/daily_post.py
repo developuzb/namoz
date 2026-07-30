@@ -128,13 +128,6 @@ async def run_daily_post(bot: Bot) -> None:
                 )
                 if ok:
                     sent_ok += 1
-                    # Maksimal sifat — siqilmagan HD nusxa (fayl sifatida)
-                    await send_document_safe(
-                        bot=bot,
-                        chat_id=ch.chat_id,
-                        file_path=str(bundle.image_path),
-                        filename=f"HD_{Path(bundle.image_path).name}",
-                    )
                 else:
                     sent_fail += 1
                 await asyncio.sleep(_SEND_DELAY)
@@ -155,13 +148,6 @@ async def run_daily_post(bot: Bot) -> None:
                 )
                 if ok:
                     sent_ok += 1
-                    # Maksimal sifat — siqilmagan HD nusxa (fayl sifatida)
-                    await send_document_safe(
-                        bot=bot,
-                        chat_id=gc.chat_id,
-                        file_path=str(bundle.image_path),
-                        filename=f"HD_{Path(bundle.image_path).name}",
-                    )
                 else:
                     sent_fail += 1
                 await asyncio.sleep(_SEND_DELAY)

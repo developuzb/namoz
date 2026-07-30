@@ -201,17 +201,18 @@ def default_caption(
     regions_data: dict[str, dict[str, str]] | None = None,
 ) -> str:
     """Kanalga yuboriladigan standart caption."""
+    from datetime import datetime as _dt
+
     from app.services.hijri_service import gregorian_to_hijri_uz
     from app.services.qashqadaryo_table import TUMAN_ORDER_CYR
     from app.utils.text_utils import format_milodiy_uz, weekday_uz
-    from datetime import datetime as _dt
 
     dt = _dt(target_date.year, target_date.month, target_date.day)
     milodiy = format_milodiy_uz(dt)
     hafta = weekday_uz(dt)
     try:
         hijriy = gregorian_to_hijri_uz(target_date)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning("Hijriy sana hisoblanmadi ({}): {}", target_date, e)
         hijriy = ""
 
@@ -358,12 +359,7 @@ async def _send_photo_safe(
     caption: str,
     post_type: str,
 ) -> bool:
-    """Photo + HD document ketma-ket yuboradi, xatolarni post_logs ga yozadi.
-
-    Yuborish mantiqi umumiy `app.services.telegram_send` modulida.
-    """
-    filename = Path(image_path).name
-
+    """Faqat photo yuboradi, xatolarni post_logs ga yozadi."""
     async with get_session() as session:
         msg = await send_photo_safe(
             bot=bot,
@@ -375,18 +371,7 @@ async def _send_photo_safe(
             region_id=None,
         )
 
-    if msg is None:
-        return False
-
-    # HD original fayl (document) — siqishsiz, retry bilan
-    await send_document_safe(
-        bot=bot,
-        chat_id=chat_id,
-        file_path=image_path,
-        caption=caption,
-        filename=f"HD_{filename}",
-    )
-    return True
+    return msg is not None
 
 
 __all__ = [

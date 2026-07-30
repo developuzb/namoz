@@ -37,7 +37,9 @@ from app.bot.keyboards.callback_data import (
     CB_CH_EDIT_REGION,
     CB_CH_EDIT_TITLE,
     CB_CH_SET_ALL_AVATARS,
+    CB_CH_SET_ALL_INFO,
     CB_CH_SET_AVATAR,
+    CB_CH_SET_INFO,
     CB_CH_TEMPLATE_CLEAR,
     CB_CH_TEMPLATE_EDIT,
     CB_CH_TOGGLE,
@@ -778,6 +780,97 @@ async def _run_all_avatars(target_message: Message, session: AsyncSession) -> No
 
     summary = (
         "📊 <b>Kanal rasmlarini o'rnatish natijasi:</b>\n\n"
+        f"✅ Muvaffaqiyatli: <b>{success_count}</b> ta\n"
+        f"❌ Xatolar: <b>{fail_count}</b> ta\n\n"
+        + "\n".join(results[:15])
+    )
+    if len(results) > 15:
+        summary += f"\n…va yana {len(results) - 15} ta"
+
+    await status_msg.edit_text(summary)
+
+
+# =================== Title & Description (Metadata) handlers ===================
+
+@router.callback_query(F.data.startswith(f"{CB_CH_SET_INFO}:"))
+async def set_single_info(call: CallbackQuery, session: AsyncSession) -> None:
+    """Bitta kanal uchun nom va tavsifni avtomatik o'rnatadi."""
+    from app.services.channel_metadata import update_channel_info
+
+    try:
+        ch_id = int(call.data.split(":", 1)[1])
+    except (ValueError, IndexError):
+        await call.answer("Noto'g'ri", show_alert=True)
+        return
+
+    ch_repo = ChannelRepository(session)
+    ch = await ch_repo.get(ch_id)
+    if ch is None:
+        await call.answer("Kanal topilmadi", show_alert=True)
+        return
+
+    await call.answer("⏳ Kanal nomi va tavsifi yangilanmoqda...")
+    ok, err = await update_channel_info(call.bot, ch, session)
+
+    if ok:
+        await call.message.answer(
+            f"✅ <b>{escape_html(ch.title or 'Kanal')}</b> uchun professional nom "
+            "va tavsif (bio) muvaffaqiyatli o'rnatildi!"
+        )
+    else:
+        await call.message.answer(
+            f"⚠️ <b>Ogohlantirish</b>: {escape_html(err)}\n\n"
+            "ℹ️ <i>Bot kanalda admin ekanini va ma'lumotlarni o'zgartirish huquqiga egaligini tekshiring.</i>"
+        )
+
+
+@router.callback_query(F.data == CB_CH_SET_ALL_INFO)
+async def set_all_info_callback(call: CallbackQuery, session: AsyncSession) -> None:
+    """Barcha faol kanallarga nom va tavsif o'rnatadi."""
+    await call.answer("⏳ Barcha kanallarga nom va tavsif yozish boshlandi...")
+    await _run_all_info(call.message, session)
+
+
+@router.message(Command("set_channel_info"))
+@router.message(Command("set_descriptions"))
+async def cmd_set_channel_info(message: Message, session: AsyncSession) -> None:
+    """Buyruq orqali barcha kanallarga nom va tavsif (bio) o'rnatish."""
+    await message.answer("⏳ <b>Barcha kanallarga professional nom va tavsif yozish boshlandi...</b>")
+    await _run_all_info(message, session)
+
+
+async def _run_all_info(target_message: Message, session: AsyncSession) -> None:
+    """Barcha kanallarga nom va tavsiflarni Telegram'da yangilash."""
+    from app.services.channel_metadata import update_channel_info
+
+    ch_repo = ChannelRepository(session)
+    channels = await ch_repo.list_all_with_region()
+
+    if not channels:
+        await target_message.answer("⚠️ Hali birorta ham kanal qo'shilmagan.")
+        return
+
+    status_msg = await target_message.answer(
+        f"📝 <b>{len(channels)} ta kanal uchun nom va tavsiflar yangilanmoqda...</b>\n"
+        "Iltimos, kuting..."
+    )
+
+    success_count = 0
+    fail_count = 0
+    results = []
+
+    for ch in channels:
+        ok, err = await update_channel_info(target_message.bot, ch, session)
+        title = ch.title or (ch.region.name if ch.region else str(ch.chat_id))
+        if ok:
+            success_count += 1
+            results.append(f"✅ <b>{escape_html(title)}</b> — Yangilandi")
+        else:
+            fail_count += 1
+            results.append(f"❌ <b>{escape_html(title)}</b> — <code>{escape_html(err[:100])}</code>")
+
+    summary = (
+        "📊 <b>Kanal nomlari va tavsiflarini o'rnatish natijasi:</b>\n\n"
         f"✅ Muvaffaqiyatli: <b>{success_count}</b> ta\n"
         f"❌ Xatolar: <b>{fail_count}</b> ta\n\n"
         + "\n".join(results[:15])

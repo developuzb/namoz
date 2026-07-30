@@ -80,6 +80,8 @@ CB_CH_EDIT_LINK = "ch:elink"         # ch:elink:<id> — linkni o'zgartirish
 CB_CH_EDIT_TITLE = "ch:etitle"       # ch:etitle:<id> — nomni o'zgartirish
 CB_CH_SET_AVATAR = "ch:avatar"       # ch:avatar:<id> — rasm (avatar) qo'yish
 CB_CH_SET_ALL_AVATARS = "ch:all_avatars" # barcha kanallarga rasm qo'yish
+CB_CH_SET_INFO = "ch:set_info"       # ch:set_info:<id> — nom va tavsif o'rnatish
+CB_CH_SET_ALL_INFO = "ch:all_info"   # barcha kanallarga nom va tavsif o'rnatish
 
 # ---------- Admin: Masjid time edit ----------
 CB_MT_VILOYAT = "mt_vil"             # mt_vil:<region_id>
