@@ -4,16 +4,18 @@
 """
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.core.config import get_settings
 from app.core.logger import logger
 from app.db.models.channel import Channel
+from app.services.backdrop import aqsa_backdrop
 
 SIZE = (1000, 1000)
 SS = 2  # Supersample 2x (2000x2000 render qilinib 1000x1000 ga LANCZOS bilan tushiriladi)
@@ -45,8 +47,60 @@ def _load_font(filename: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
+def _try_bold(font: ImageFont.FreeTypeFont, weight: int = 800) -> None:
+    """Variable shriftni qalin qiladi — avval wght o'qi (ishonchli), keyin nom."""
+    # 1) To'g'ridan-to'g'ri wght o'qi (Montserrat: 100–900)
+    try:
+        if hasattr(font, "set_variation_by_axes"):
+            font.set_variation_by_axes([weight])
+            return
+    except (OSError, ValueError):
+        pass
+    # 2) Nomli variant (fallback)
+    try:
+        if hasattr(font, "get_variation_names") and hasattr(font, "set_variation_by_name"):
+            names = font.get_variation_names()
+            low = [n.lower() for n in names]
+            for key in ("extrabold", "bold", "semibold"):
+                if key in low:
+                    font.set_variation_by_name(names[low.index(key)])
+                    return
+    except OSError:
+        pass
+
+
+def _glow(diam: int, color: tuple[int, int, int], max_alpha: int) -> Image.Image:
+    """Yumshoq radial nur (markazda yorqin → chetда shaffof)."""
+    grad = Image.radial_gradient("L").resize((diam, diam))
+    alpha = ImageOps.invert(grad).point(lambda v: int((v / 255) * max_alpha))
+    layer = Image.new("RGBA", (diam, diam), (*color, 0))
+    layer.putalpha(alpha)
+    return layer
+
+
+def _fit_font(
+    draw: ImageDraw.ImageDraw, text: str, path: str, start_px: int, max_w: int
+) -> ImageFont.FreeTypeFont:
+    """Matn `max_w` ga sig'guncha shrift o'lchamini kamaytiradi (qalin)."""
+    size = start_px
+    while size > 24:
+        f = _load_font(path, size)
+        _try_bold(f)
+        if draw.textlength(text, font=f) <= max_w:
+            return f
+        size -= 6 * SS
+    f = _load_font(path, size)
+    _try_bold(f)
+    return f
+
+
 def generate_channel_avatar(title: str, subtitle: str = "NAMOZ VAQTLARI") -> Path:
-    """Kanal nomi bo'yicha profil rasmi (1000x1000 PNG) yasaydi."""
+    """Kanal nomi bo'yicha PROFESSIONAL profil rasmi (1000x1000 PNG).
+
+    Chuqur emerald gradient + vinyetka, oltin bezakli halqa (rombli),
+    nafis hilol + 8 qirrali yulduz (Rub-el-Hizb), pastda Masjidul Aqso
+    silueti, qalin oltin sarlavha va oltin pill sub-title.
+    """
     settings = get_settings()
     out_dir = settings.data_dir / "images" / "avatars"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -54,120 +108,129 @@ def generate_channel_avatar(title: str, subtitle: str = "NAMOZ VAQTLARI") -> Pat
     safe_name = re.sub(r"[^A-Za-z0-9_-]+", "_", title).strip("_") or "channel"
     out_path = out_dir / f"avatar_{safe_name}.png"
 
-    # Supersampled canvas (2000x2000)
     w, h = SIZE[0] * SS, SIZE[1] * SS
-    img = Image.new("RGBA", (w, h), COLOR_BG_DARK)
-
-    # 1. Radial Background Gradient
-    glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
     cx, cy = w // 2, h // 2
-    max_r = int(w * 0.65)
-    for r in range(max_r, 0, -20):
-        alpha = int(90 * (1 - r / max_r) ** 1.5)
-        glow_draw.ellipse(
-            [cx - r, cy - r, cx + r, cy + r],
-            fill=(COLOR_GLOW[0], COLOR_GLOW[1], COLOR_GLOW[2], alpha),
-        )
-    glow = glow.filter(ImageFilter.GaussianBlur(40 * SS))
-    img = Image.alpha_composite(img, glow)
+
+    # ── 1. Radial emerald fon + vinyetka (markaz yorqin → chet to'q) ──
+    center_img = Image.new("RGB", (w, h), COLOR_BG_LIGHT)
+    edge_img = Image.new("RGB", (w, h), (5, 15, 11))
+    grad = Image.radial_gradient("L").resize((w, h))
+    img = Image.composite(edge_img, center_img, grad).convert("RGBA")
+
+    # ── 2. Emblema ortida issiq oltin-yashil nur ──
+    g = _glow(int(w * 0.70), COLOR_GLOW, 80)
+    img.alpha_composite(g, (cx - g.width // 2, int(h * 0.30) - g.height // 2))
+
+    # ── 3. Pastda Masjidul Aqso silueti (skyline) ──
+    m_w = int(w * 0.66)
+    m_h = int(h * 0.20)
+    mosque = aqsa_backdrop(width=m_w, height=m_h, color=COLOR_GOLD, alpha=60)
+    img.alpha_composite(mosque, (cx - m_w // 2, int(h * 0.735)))
 
     draw = ImageDraw.Draw(img)
 
-    # 2. Outer Decorative Gold Border (Halqa ramka)
-    margin = 50 * SS
-    ring_r = (w // 2) - margin
-    # Oltin halqa (Tashqi va ichki nozik halqalar)
+    # ── 4. Oltin bezakli ikki qavat halqa (doira ichida) + 4 romb ──
+    ring_r = int(w * 0.445)
     draw.ellipse(
         [cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r],
-        outline=COLOR_GOLD,
-        width=6 * SS,
+        outline=COLOR_GOLD, width=5 * SS,
     )
-    inner_ring_r = ring_r - (16 * SS)
+    r2 = ring_r - 15 * SS
     draw.ellipse(
-        [cx - inner_ring_r, cy - inner_ring_r, cx + inner_ring_r, cy + inner_ring_r],
-        outline=COLOR_GOLD_DARK,
-        width=2 * SS,
+        [cx - r2, cy - r2, cx + r2, cy + r2],
+        outline=COLOR_GOLD_DARK, width=2 * SS,
     )
+    for ang in (90, 0, 270, 180):  # N, E, S, W
+        dx = cx + int(ring_r * math.cos(math.radians(ang)))
+        dy = cy - int(ring_r * math.sin(math.radians(ang)))
+        ds = 13 * SS
+        draw.polygon(
+            [(dx, dy - ds), (dx + ds, dy), (dx, dy + ds), (dx - ds, dy)],
+            fill=COLOR_GOLD,
+        )
 
-    # 3. Top Emblem (Hilol / Masjid belgisi)
-    # Hilol (Crescent Moon) chizish
-    moon_cx, moon_cy = cx, cy - (180 * SS)
-    moon_r = 90 * SS
-    # Oltin doira
-    draw.ellipse(
-        [moon_cx - moon_r, moon_cy - moon_r, moon_cx + moon_r, moon_cy + moon_r],
+    # ── 5. Nafis hilol (maskali — fon gradientiga zarar bermaydi) ──
+    R = 140 * SS
+    mcx, mcy = cx, int(h * 0.315)
+    cres = Image.new("L", (w, h), 0)
+    cd = ImageDraw.Draw(cres)
+    cd.ellipse([mcx - R, mcy - R, mcx + R, mcy + R], fill=255)
+    ox = int(0.46 * R)
+    cut = int(0.90 * R)
+    cd.ellipse(
+        [mcx - cut + ox, mcy - cut - int(0.06 * R),
+         mcx + cut + ox, mcy + cut - int(0.06 * R)],
+        fill=0,
+    )
+    gold_layer = Image.new("RGBA", (w, h), (*COLOR_GOLD, 0))
+    gold_layer.putalpha(cres)
+    img.alpha_composite(gold_layer)
+
+    # ── 6. 8 qirrali yulduz (hilol ichida) ──
+    sx, sy = mcx + int(0.66 * R), mcy
+    sr = int(0.40 * R)
+    star_pts = []
+    for i in range(16):
+        a = math.pi / 2 + i * math.pi / 8
+        rad = sr if i % 2 == 0 else sr * 0.42
+        star_pts.append((sx + rad * math.cos(a), sy - rad * math.sin(a)))
+    ImageDraw.Draw(img).polygon(star_pts, fill=COLOR_GOLD)
+
+    draw = ImageDraw.Draw(img)
+
+    # ── 7. Sarlavha (QALIN, halqaga sig'adigan) ──
+    title_path = "Montserrat-VariableFont_wght.ttf"
+    clean = title.upper()
+    max_w = int(2 * r2 * 0.80)
+    tf = _fit_font(draw, clean, title_path, 128 * SS, max_w)
+    ty = int(h * 0.55)
+    # yumshoq soya + oltin-oq matn
+    draw.text((cx + 3 * SS, ty + 3 * SS), clean, font=tf, fill=(0, 0, 0, 150), anchor="mm")
+    draw.text((cx, ty), clean, font=tf, fill=(250, 246, 235), anchor="mm")
+
+    # ── 8. Oltin ajratuvchi (romb + chiziqlar) ──
+    dy2 = int(h * 0.635)
+    dia = 9 * SS
+    draw.line((cx - 130 * SS, dy2, cx - dia - 10 * SS, dy2), fill=COLOR_GOLD, width=3 * SS)
+    draw.line((cx + dia + 10 * SS, dy2, cx + 130 * SS, dy2), fill=COLOR_GOLD, width=3 * SS)
+    draw.polygon(
+        [(cx, dy2 - dia), (cx + dia, dy2), (cx, dy2 + dia), (cx - dia, dy2)],
         fill=COLOR_GOLD,
     )
-    # To'q kesuvchi doira (Hilol shaklini hosil qilish)
-    offset_x = 30 * SS
-    draw.ellipse(
-        [moon_cx - moon_r + offset_x, moon_cy - moon_r - (5 * SS),
-         moon_cx + moon_r + offset_x, moon_cy + moon_r - (5 * SS)],
-        fill=COLOR_BG_DARK,
-    )
 
-    # Hilol ustidagi kichik 8 qirrali yulduz / nuqta
-    star_x, star_y = moon_cx - (20 * SS), moon_cy - (10 * SS)
-    draw.ellipse(
-        [star_x - (10 * SS), star_y - (10 * SS), star_x + (10 * SS), star_y + (10 * SS)],
-        fill=COLOR_GOLD,
-    )
-
-    # 4. Title Text (Kanal yoki Hudud nomi)
-    title_font = _load_font("Montserrat-VariableFont_wght.ttf", 85 * SS)
-    sub_font = _load_font("Inter-VariableFont_opsz,wght.ttf", 45 * SS)
-
-    # Sarlavhani tozalash va tayyorlash
-    clean_title = title.upper()
-
-    # Agar matn judayam uzun bo'lsa, 2 qatorga bo'lamiz
-    words = clean_title.split()
-    if len(words) > 2:
-        mid = len(words) // 2
-        line1 = " ".join(words[:mid])
-        line2 = " ".join(words[mid:])
-        lines = [line1, line2]
-    else:
-        lines = [clean_title]
-
-    # Matnlarni chizish
-    curr_y = cy + (40 * SS)
-    for line in lines:
-        bbox = draw.textbbox((0, 0), line, font=title_font)
-        lw = bbox[2] - bbox[0]
-        lh = bbox[3] - bbox[1]
-        lx = (w - lw) // 2
-        # Soya va oq matn
-        draw.text((lx + (3 * SS), curr_y + (3 * SS)), line, font=title_font, fill=(0, 0, 0, 160))
-        draw.text((lx, curr_y), line, font=title_font, fill=COLOR_WHITE)
-        curr_y += lh + (25 * SS)
-
-    # 5. Subtitle Pill Badge ("NAMOZ VAQTLARI")
+    # ── 9. Sub-title pill (oltin gradient, to'q qalin matn) ──
+    sub_font = _load_font(title_path, 44 * SS)
+    _try_bold(sub_font)
     sub_text = subtitle.upper()
-    s_bbox = draw.textbbox((0, 0), sub_text, font=sub_font)
-    sw = s_bbox[2] - s_bbox[0]
-    sh = s_bbox[3] - s_bbox[1]
-
-    pill_w = sw + (80 * SS)
-    pill_h = sh + (40 * SS)
-    pill_x = (w - pill_w) // 2
-    pill_y = curr_y + (40 * SS)
-
-    # Gold Pill background
-    draw.rounded_rectangle(
-        [pill_x, pill_y, pill_x + pill_w, pill_y + pill_h],
-        radius=pill_h // 2,
-        fill=COLOR_GOLD,
+    sw = draw.textlength(sub_text, font=sub_font)
+    pill_w = int(sw + 84 * SS)
+    pill_h = int(72 * SS)
+    px = cx - pill_w // 2
+    py = int(h * 0.685)
+    # oltin gradient pill
+    band = Image.new("RGB", (pill_w, 1))
+    for i in range(pill_w):
+        t = i / max(pill_w - 1, 1)
+        band.putpixel((i, 0), (
+            int(COLOR_GOLD[0] + (COLOR_GOLD_DARK[0] - COLOR_GOLD[0]) * t),
+            int(COLOR_GOLD[1] + (COLOR_GOLD_DARK[1] - COLOR_GOLD[1]) * t),
+            int(COLOR_GOLD[2] + (COLOR_GOLD_DARK[2] - COLOR_GOLD[2]) * t),
+        ))
+    pill = band.resize((pill_w, pill_h)).convert("RGBA")
+    mask = Image.new("L", (pill_w, pill_h), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (0, 0, pill_w, pill_h), radius=pill_h // 2, fill=255,
     )
-    # Subtitle Text inside Pill (Dark text for high contrast)
-    st_x = (w - sw) // 2
-    st_y = pill_y + (s_bbox[1] if s_bbox[1] < 0 else 0) + ((pill_h - sh) // 2) - (2 * SS)
-    draw.text((st_x, st_y), sub_text, font=sub_font, fill=COLOR_BG_DARK)
+    pill.putalpha(mask)
+    img.alpha_composite(pill, (px, py))
+    ImageDraw.Draw(img).text(
+        (cx, py + pill_h // 2), sub_text, font=sub_font,
+        fill=(20, 40, 28), anchor="mm",
+    )
 
-    # Downsample to final SIZE (1000x1000)
-    final_img = img.resize(SIZE, Image.Resampling.LANCZOS)
-    final_img.save(out_path, "PNG", quality=95)
+    # ── 10. Yakuniy: 1000x1000 ga LANCZOS + PNG ──
+    final_img = img.convert("RGB").resize(SIZE, Image.Resampling.LANCZOS)
+    final_img.save(out_path, "PNG", optimize=True)
     logger.info("Kanal avatari yaratildi: {}", out_path)
     return out_path
 
