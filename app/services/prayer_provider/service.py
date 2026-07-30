@@ -38,12 +38,27 @@ class PrayerService:
         self.cache = cache or PrayerTimesCache()
 
         s = get_settings()
-        self._chain = self._build_chain(s.PRAYER_PROVIDER_PRIMARY, s.PRAYER_PROVIDER_FALLBACK)
+        self._chain = self._build_chain(
+            s.PRAYER_PROVIDER_PRIMARY,
+            s.PRAYER_PROVIDER_FALLBACK,
+            s.PRAYER_PROVIDER_FALLBACK_ENABLED,
+        )
         logger.info("PrayerService chain: {}", " → ".join(self._chain))
 
     @staticmethod
-    def _build_chain(primary: str, fallback: str) -> list[str]:
-        """Chain tartibi: primary, fallback, va oxirida global aladhan."""
+    def _build_chain(
+        primary: str, fallback: str, fallback_enabled: bool = True
+    ) -> list[str]:
+        """Chain tartibi: primary, fallback, va oxirida global aladhan.
+
+        `fallback_enabled=False` bo'lsa — faqat primary manba (zaxirasiz).
+        """
+        valid = {"islomapi", "praytime", "aladhan"}
+
+        if not fallback_enabled:
+            # Faqat primary — zaxira (praytime/aladhan) o'chirilgan
+            return [primary if primary in valid else "islomapi"]
+
         order: list[str] = []
         for name in (primary, fallback):
             if name in {"islomapi", "praytime"} and name not in order:

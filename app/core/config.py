@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # ---------------- Provider ----------------
     PRAYER_PROVIDER_PRIMARY: str = Field(default="islomapi")
     PRAYER_PROVIDER_FALLBACK: str = Field(default="praytime")
+    #: False → faqat PRIMARY manba ishlatiladi (zaxira praytime/aladhan
+    #: o'chiriladi). Primary tushsa — post o'tkazib yuboriladi.
+    PRAYER_PROVIDER_FALLBACK_ENABLED: bool = Field(default=True)
     ISLOMAPI_BASE_URL: str = Field(default="https://islomapi.uz")
     PRAYTIME_BASE_URL: str = Field(default="https://praytime.uz")
     PROVIDER_TIMEOUT: int = Field(default=15, ge=1, le=60)

@@ -27,7 +27,8 @@ from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_session
 from app.services.registry import get_post_service
-from app.services.telegram_send import send_photo_safe
+from app.services.telegram_send import notify_admins, send_photo_safe
+from app.utils.text_utils import escape_html
 
 #: Telegram'ga zaxira: yuborish orasida kichik pauza
 _SEND_DELAY = 0.1
@@ -72,6 +73,9 @@ async def run_daily_post(bot: Bot) -> None:
 
         sent_ok = 0
         sent_fail = 0
+        #: Manba (provider) ishlamay post yasay olmagan hududlar
+        failed_regions: list[str] = []
+        last_provider_error: str = ""
 
         for region_id in region_ids:
             region = await rr.get(region_id)
@@ -85,6 +89,8 @@ async def run_daily_post(bot: Bot) -> None:
                 )
             except ProviderError as e:
                 logger.error("Daily post: provider failed for {}: {}", region.name, e)
+                failed_regions.append(region.name)
+                last_provider_error = str(e)
                 # Har bir maqsad uchun xato yozish
                 for ch in channels:
                     if ch.region_id == region_id:
@@ -165,6 +171,32 @@ async def run_daily_post(bot: Bot) -> None:
                 await asyncio.sleep(_SEND_DELAY)
 
         logger.info("✅ Kunlik post tugadi: ok={} fail={}", sent_ok, sent_fail)
+
+    # Manba ishlamay qolgan hududlar bo'lsa — adminlarga ogohlantirish
+    if failed_regions:
+        await _notify_provider_down(bot, failed_regions, last_provider_error, today)
+
+
+async def _notify_provider_down(
+    bot: Bot, failed_regions: list[str], error: str, today: date,
+) -> None:
+    """Namoz vaqti manbai ishlamaganda adminlarga xabar yuboradi."""
+    shown = failed_regions[:15]
+    region_lines = "\n".join(f"• {escape_html(name)}" for name in shown)
+    if len(failed_regions) > len(shown):
+        region_lines += f"\n• …va yana {len(failed_regions) - len(shown)} ta"
+
+    text = (
+        "⚠️ <b>Namoz vaqti manbai ishlamadi</b>\n\n"
+        f"📅 {today.isoformat()} — quyidagi <b>{len(failed_regions)}</b> hudud "
+        "uchun kunlik post <b>yuborilmadi</b> (manba javob bermadi):\n"
+        f"{region_lines}\n\n"
+        f"🛑 Sabab: <code>{escape_html(error)}</code>\n\n"
+        "ℹ️ Zaxira manba o'chirilgan (faqat islomapi). Manba tuzalgach "
+        "postlar avtomatik tiklanadi. Zaxirani yoqish uchun: "
+        "<code>PRAYER_PROVIDER_FALLBACK_ENABLED=true</code>"
+    )
+    await notify_admins(bot, text)
 
 
 __all__ = ["run_daily_post"]

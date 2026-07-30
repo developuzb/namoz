@@ -28,7 +28,12 @@ from app.services.qashqadaryo_table import (
     render_qashqadaryo_table,
 )
 from app.services.registry import get_prayer_service
-from app.services.telegram_send import send_document_safe, send_photo_safe
+from app.services.telegram_send import (
+    notify_admins,
+    send_document_safe,
+    send_photo_safe,
+)
+from app.utils.text_utils import escape_html
 
 #: Viloyat (parent) slug — seed migratsiyasidan
 PARENT_SLUG = "qashqadaryo"
@@ -303,6 +308,18 @@ async def send_qashqadaryo_post(
             await PostLogRepository(session).log(
                 region_id=None, chat_id=chat_id,
                 post_type="qashqadaryo", status="error", error=str(e),
+            )
+        # Rejadagi post manba tushib qolgani uchun yasalmasa — adminga xabar
+        # (test/preview'da admin xatoni allaqachon chatida ko'radi).
+        if isinstance(e, ProviderError) and not test_mode:
+            await notify_admins(
+                bot,
+                "⚠️ <b>Qashqadaryo plakati yuborilmadi</b>\n\n"
+                f"📅 {target_date.isoformat()} — namoz vaqti manbai javob "
+                "bermadi, shu sabab kanalga plakat <b>chiqmadi</b>.\n\n"
+                f"🛑 Sabab: <code>{escape_html(str(e))}</code>\n\n"
+                "ℹ️ Zaxira manba o'chirilgan (faqat islomapi). Manba tuzalgach "
+                "avtomatik tiklanadi.",
             )
         return False
 

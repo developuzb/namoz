@@ -91,6 +91,24 @@ async def send_photo_safe(
     return None
 
 
+async def notify_admins(bot: Bot, text: str) -> None:
+    """Barcha adminlarga (ADMIN_IDS) xabar yuboradi.
+
+    Xatolarni yutadi — job to'xtamasin. ADMIN_IDS bo'sh bo'lsa faqat log.
+    """
+    from app.core.config import get_settings
+
+    admin_ids = get_settings().admin_ids_list
+    if not admin_ids:
+        logger.warning("notify_admins: ADMIN_IDS bo'sh — xabar yuborilmadi")
+        return
+    for admin_id in admin_ids:
+        try:
+            await bot.send_message(chat_id=admin_id, text=text)
+        except Exception as e:
+            logger.warning("Admin {} ga ogohlantirish yuborilmadi: {}", admin_id, e)
+
+
 async def send_document_safe(
     *,
     bot: Bot,
@@ -124,4 +142,4 @@ async def send_document_safe(
     return False
 
 
-__all__ = ["send_document_safe", "send_photo_safe"]
+__all__ = ["notify_admins", "send_document_safe", "send_photo_safe"]
