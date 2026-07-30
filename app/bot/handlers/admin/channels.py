@@ -112,8 +112,17 @@ async def show_channels(
 async def cmd_set_channel_info(message: Message, session: AsyncSession, state: FSMContext) -> None:
     """Buyruq orqali barcha kanallarga nom va tavsif (bio) o'rnatish."""
     await state.clear()
-    await message.answer("⏳ <b>Barcha kanallarga professional nom va tavsif yozish boshlandi...</b>")
-    await _run_all_info(message, session)
+    status_msg = await message.answer(
+        "⏳ <b>Barcha kanallarga professional nom va tavsif yozish boshlandi...</b>\n"
+        "Iltimos, kuting..."
+    )
+    try:
+        await _run_all_info(status_msg, session)
+    except Exception as e:
+        logger.exception("cmd_set_channel_info error: {}", e)
+        await status_msg.edit_text(
+            f"❌ <b>Xatolik yuz berdi:</b>\n<code>{escape_html(str(e))}</code>"
+        )
 
 
 @router.message(Command("set_channel_photos"), StateFilter("*"))
@@ -121,8 +130,17 @@ async def cmd_set_channel_info(message: Message, session: AsyncSession, state: F
 async def cmd_set_channel_photos(message: Message, session: AsyncSession, state: FSMContext) -> None:
     """Buyruq orqali barcha kanallarga avatarlarni o'rnatish."""
     await state.clear()
-    await message.answer("⏳ <b>Barcha kanallarga nomiga mos rasm tayyorlash va o'rnatish boshlandi...</b>")
-    await _run_all_avatars(message, session)
+    status_msg = await message.answer(
+        "⏳ <b>Barcha kanallarga nomiga mos rasm tayyorlash va o'rnatish boshlandi...</b>\n"
+        "Iltimos, kuting..."
+    )
+    try:
+        await _run_all_avatars(status_msg, session)
+    except Exception as e:
+        logger.exception("cmd_set_channel_photos error: {}", e)
+        await status_msg.edit_text(
+            f"❌ <b>Xatolik yuz berdi:</b>\n<code>{escape_html(str(e))}</code>"
+        )
 
 
 # =================== Add flow ===================
@@ -768,13 +786,22 @@ async def _run_all_avatars(target_message: Message, session: AsyncSession) -> No
     channels = await ch_repo.list_all_with_region()
 
     if not channels:
-        await target_message.answer("⚠️ Hali birorta ham kanal qo'shilmagan.")
+        text = "⚠️ Hali birorta ham kanal qo'shilmagan."
+        if target_message.from_user and target_message.from_user.is_bot:
+            await target_message.edit_text(text)
+        else:
+            await target_message.answer(text)
         return
 
-    status_msg = await target_message.answer(
+    init_text = (
         f"🖼 <b>{len(channels)} ta kanal uchun profil rasmlari tayyorlanmoqda...</b>\n"
         "Iltimos, kuting..."
     )
+    if target_message.from_user and target_message.from_user.is_bot:
+        status_msg = target_message
+        await status_msg.edit_text(init_text)
+    else:
+        status_msg = await target_message.answer(init_text)
 
     success_count = 0
     fail_count = 0
@@ -851,13 +878,22 @@ async def _run_all_info(target_message: Message, session: AsyncSession) -> None:
     channels = await ch_repo.list_all_with_region()
 
     if not channels:
-        await target_message.answer("⚠️ Hali birorta ham kanal qo'shilmagan.")
+        text = "⚠️ Hali birorta ham kanal qo'shilmagan."
+        if target_message.from_user and target_message.from_user.is_bot:
+            await target_message.edit_text(text)
+        else:
+            await target_message.answer(text)
         return
 
-    status_msg = await target_message.answer(
+    init_text = (
         f"📝 <b>{len(channels)} ta kanal uchun nom va tavsiflar yangilanmoqda...</b>\n"
         "Iltimos, kuting..."
     )
+    if target_message.from_user and target_message.from_user.is_bot:
+        status_msg = target_message
+        await status_msg.edit_text(init_text)
+    else:
+        status_msg = await target_message.answer(init_text)
 
     success_count = 0
     fail_count = 0
