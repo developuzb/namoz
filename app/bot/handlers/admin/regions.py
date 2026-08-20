@@ -81,7 +81,7 @@ async def show_list(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_RG_VIEW}:"))
 async def view_region(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        rid = int(call.data.split(":", 1)[1])
+        rid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -126,7 +126,7 @@ async def view_region(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_RG_TOGGLE_ACTIVE}:"))
 async def toggle_active(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        rid = int(call.data.split(":", 1)[1])
+        rid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -147,7 +147,7 @@ async def toggle_active(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_RG_DELETE}:"))
 async def confirm_delete(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        rid = int(call.data.split(":", 1)[1])
+        rid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -170,7 +170,7 @@ async def confirm_delete(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_RG_DELETE_OK}:"))
 async def do_delete(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        rid = int(call.data.split(":", 1)[1])
+        rid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return

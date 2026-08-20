@@ -110,7 +110,7 @@ async def show_users(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_USR_PAGE}:"))
 async def page_users(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        page = int(call.data.split(":", 1)[1])
+        page = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -120,7 +120,7 @@ async def page_users(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_USR_VIEW}:"))
 async def view_user(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        uid = int(call.data.split(":", 1)[1])
+        uid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -161,7 +161,7 @@ async def view_user(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_USR_BLOCK}:"))
 async def block_user(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        uid = int(call.data.split(":", 1)[1])
+        uid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return
@@ -182,7 +182,7 @@ async def block_user(call: CallbackQuery, session: AsyncSession) -> None:
 @router.callback_query(F.data.startswith(f"{CB_USR_UNBLOCK}:"))
 async def unblock_user(call: CallbackQuery, session: AsyncSession) -> None:
     try:
-        uid = int(call.data.split(":", 1)[1])
+        uid = int(call.data.split(":")[-1])
     except (ValueError, IndexError):
         await call.answer("Noto'g'ri", show_alert=True)
         return

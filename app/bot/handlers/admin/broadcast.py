@@ -135,7 +135,7 @@ async def cb_broadcast(call: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data.startswith(f"{CB_BC_TARGET}:"))
 async def cb_select_target(call: CallbackQuery, state: FSMContext) -> None:
-    target = call.data.split(":", 1)[1]  # "channels" | "users"
+    target = call.data.split(":")[-1]  # "channels" | "users"
     await state.set_state(BroadcastFSM.composing)
     await state.update_data(
         target=target,
@@ -210,7 +210,7 @@ async def receive_broadcast(
 async def cb_toggle_option(
     call: CallbackQuery, state: FSMContext, session: AsyncSession
 ) -> None:
-    option = call.data.split(":", 1)[1]
+    option = call.data.split(":")[-1]
     data = await state.get_data()
 
     target = data.get("target", "channels")
