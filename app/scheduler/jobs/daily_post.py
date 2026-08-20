@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date
-from pathlib import Path
 
 from aiogram import Bot
 from sqlalchemy import select
@@ -28,12 +27,8 @@ from app.db.repositories.subscription_repo import SubscriptionRepository
 from app.db.repositories.user_repo import UserRepository
 from app.db.session import get_session
 from app.services.registry import get_post_service
-from app.services.telegram_send import (
-    notify_admins,
-    send_document_safe,
-    send_photo_safe,
-)
-from app.utils.text_utils import escape_html
+from app.services.telegram_send import notify_admins, send_photo_safe
+from app.utils.text_utils import escape_html, normalize_channel_link
 
 #: Telegram'ga zaxira: yuborish orasida kichik pauza
 _SEND_DELAY = 0.1
@@ -111,10 +106,15 @@ async def run_daily_post(bot: Bot) -> None:
                     continue
 
                 caption = bundle.caption
-                if ch.link:
-                    caption = f"{caption}\n\n🔗 {ch.link}"
                 if ch.custom_caption_template:
                     caption = f"{caption}\n\n{ch.custom_caption_template}"
+                # Obuna havolasi — eng pastда, tuzatilgan clickable link
+                sub_link = normalize_channel_link(ch.link)
+                if sub_link:
+                    caption = (
+                        f"{caption}\n\n"
+                        f"📢 <a href=\"{escape_html(sub_link)}\">Kanalga obuna bo'lish</a>"
+                    )
 
                 ok = await send_photo_safe(
                     bot=bot,
