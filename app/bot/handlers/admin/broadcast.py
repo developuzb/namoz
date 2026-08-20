@@ -16,13 +16,12 @@ from html import escape
 
 from aiogram import F, Router
 from aiogram.exceptions import (
-    TelegramBadRequest,
     TelegramForbiddenError,
     TelegramRetryAfter,
 )
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -34,7 +33,6 @@ from app.bot.keyboards import (
 )
 from app.bot.keyboards.callback_data import (
     CB_ADMIN_BROADCAST,
-    CB_ADMIN_ROOT,
     CB_BC_CANCEL,
     CB_BC_CONFIRM,
     CB_BC_TARGET,
@@ -180,7 +178,10 @@ async def receive_broadcast(
         active_users = await user_repo.list_active()
         count_label = f"<b>{len(active_users)}</b> ta aktiv userga"
 
-    orig_caption = message.caption_html if message.caption else (message.html_text if message.text else None)
+    # html_text aiogram'да matn VA caption'ni ham qamraydi (text or caption).
+    # Eski kod `caption_html` ishlatardi — aiogram 3.x'да bunday property yo'q,
+    # rasm+caption yuborilganда AttributeError berib bot "jim qolar" edi.
+    orig_caption = message.html_text if (message.text or message.caption) else None
 
     await state.update_data(
         from_chat_id=message.chat.id,
