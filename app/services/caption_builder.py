@@ -24,6 +24,7 @@ def build_post_caption(
     masjid_times: dict[str, str],
     channel_link: str | None = None,
     attribution: str | None = None,
+    tahajjud: str | None = None,
 ) -> str:
     """Kunlik post HTML caption ini yasaydi.
 
@@ -90,6 +91,9 @@ def build_post_caption(
     lines.append("")
     lines.append(f"🌙 <b>Saharlik:</b> <code>{saharlik}</code>")
     lines.append(f"🌇 <b>Iftorlik:</b> <code>{iftorlik}</code>")
+    # Tahajjud — kechaning oxirgi 1/3 qismi (Xuftondan ertangi Bomdodgacha)
+    if tahajjud:
+        lines.append(f"🌌 <b>Tahajjud:</b> <code>{escape_html(tahajjud)}</code>")
 
     # ========== 4. Qur'on oyati ==========
     day_ord = target_date.toordinal()

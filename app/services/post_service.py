@@ -17,6 +17,7 @@ from app.services.caption_builder import build_post_caption
 from app.services.hijri_service import gregorian_to_hijri_uz
 from app.services.image_builder import make_prayer_image
 from app.services.prayer_provider import PrayerService
+from app.services.time_calculator import calculate_nafl_windows
 from app.utils.text_utils import format_milodiy_uz
 from app.utils.time_utils import parse_hhmm_to_dt
 
@@ -114,6 +115,13 @@ class PostService:
             highlight_prayer=next_farz,
         )
 
+        # Tahajjud oralig'i — kechaning oxirgi 1/3 (Xuftondan ertangi Bomdodgacha)
+        nafl = calculate_nafl_windows(
+            region_times=pt.times, masjid_times=masjid_times,
+            target_date=target_date, tz=tz,
+        )
+        tahajjud = nafl.get("Tahajjud")
+
         caption = build_post_caption(
             parent_region_name=parent_name,
             region_name=region.name,
@@ -123,6 +131,7 @@ class PostService:
             masjid_times=masjid_times,
             channel_link=channel_link,
             attribution=_ATTRIBUTION.get(pt.provider),
+            tahajjud=tahajjud,
         )
 
         return PostBundle(image_path=img_path, caption=caption, provider=pt.provider)
